@@ -4,9 +4,9 @@ CyberVision AI là ứng dụng Flask chuyển mô tả sự cố an ninh mạng
 Việt thành Structured JSON, ánh xạ MITRE ATT&CK, bổ sung bằng kho tri thức thực,
 tạo sơ đồ tấn công và xuất báo cáo phía server.
 
-Giao diện web hiện có trong `templates/` và `static/` được giữ nguyên. Backend
-Flask cung cấp toàn bộ pipeline PHASE 1–5, API quản trị dữ liệu, renderer và
-report generator.
+Giao diện web trong `templates/` và `static/` hiển thị toàn bộ pipeline.
+Backend Flask cung cấp PHASE 1–5, API quản trị dữ liệu, renderer và report
+generator.
 
 ## Giao diện
 
@@ -14,6 +14,10 @@ report generator.
 
 Giao diện Flask gồm khu vực nhập mô tả hoặc tải tài liệu, kết quả phân tích theo
 PHASE 2–5, Structured JSON, MITRE ATT&CK mapping, attack graph, timeline và báo cáo.
+Tab **Sơ đồ tổng hợp** dùng trực tiếp canonical JSON để hợp nhất actor, target,
+asset, severity, evidence đầu vào, ATT&CK technique, cosine similarity,
+detection, mitigation, procedure, toàn bộ RAG candidates và bằng chứng từ
+Knowledge Base theo từng bước.
 
 ### Giao diện từng phần
 
@@ -44,8 +48,8 @@ PHASE 2–5, Structured JSON, MITRE ATT&CK mapping, attack graph, timeline và b
       <a href="docs/images/sections/05-phase5-graph.png"><img src="docs/images/sections/05-phase5-graph.png" alt="PHASE 5 Graph Generation"></a>
     </td>
     <td width="50%" valign="top">
-      <b>Attack Flow Diagram</b><br>
-      <a href="docs/images/sections/06-attack-flow.png"><img src="docs/images/sections/06-attack-flow.png" alt="Attack Flow Diagram"></a>
+      <b>Consolidated Attack Flow &amp; Intelligence</b><br>
+      <a href="docs/images/sections/06-attack-flow.png"><img src="docs/images/sections/06-attack-flow.png" alt="Consolidated Attack Flow and Intelligence"></a>
     </td>
   </tr>
   <tr>
@@ -97,7 +101,7 @@ PHASE 4 · MITRE ATT&CK semantic RAG + Knowledge Base đa nguồn
     ↓
 PHASE 5 · Graphviz / Mermaid / NetworkX
     ↓
-Flask UI · JSON / DOT / Mermaid / SVG / PNG / PDF / DOCX / PPTX
+Sơ đồ tổng hợp · JSON / DOT / Mermaid / SVG / PNG / PDF / DOCX / PPTX
 ```
 
 Pipeline PHASE 2–5 được điều phối bằng LangChain mặc định. Có thể đổi sang

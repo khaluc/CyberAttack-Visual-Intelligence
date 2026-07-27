@@ -47,7 +47,7 @@ function resultsView(){
  const r=state.result,[label,cl]=sev[r.severity];
  const engineLabel=r.fallback?"⚙ LOCAL ENGINE":`✦ ${String(r.engine||"LLM").toUpperCase()} + RAG`;
  return `${r.fallback?`<div class="fallback-notice">⚠ LLM gặp lỗi, kết quả được tạo bằng engine local. <button onclick="openSettings()">Kiểm tra cấu hình</button><small>${esc(r.llmError||"")}</small></div>`:""}<div class="summary"><div><span class="severity ${cl}">△ ${label}</span><span class="engine-badge">${esc(engineLabel)}</span><h2>${esc(r.incidentName)}</h2><p>⌾ ${r.entities.length} thực thể · ${r.techniques.length} kỹ thuật ATT&CK</p></div><button class="confidence" onclick="changeTab('phase3')" title="Xem cách tính confidence"><div style="--score:${r.confidence*3.6}deg"><b>${r.confidence}%</b></div><span>Pipeline confidence</span></button></div>
- <div class="result-tabs"><button data-tab="phase5" class="${state.tab==="phase5"?"active":""}" onclick="changeTab('phase5')">PHASE 5 · Graph</button><button data-tab="phase4" class="${state.tab==="phase4"?"active":""}" onclick="changeTab('phase4')">PHASE 4 · RAG</button><button data-tab="phase3" class="${state.tab==="phase3"?"active":""}" onclick="changeTab('phase3')">PHASE 3 · JSON</button><button data-tab="phase2" class="${state.tab==="phase2"?"active":""}" onclick="changeTab('phase2')">PHASE 2 · LLM</button><button data-tab="diagram" class="${state.tab==="diagram"?"active":""}" onclick="changeTab('diagram')">Sơ đồ</button><button data-tab="timeline" class="${state.tab==="timeline"?"active":""}" onclick="changeTab('timeline')">Timeline</button><button data-tab="report" class="${state.tab==="report"?"active":""}" onclick="changeTab('report')">Báo cáo</button></div>
+ <div class="result-tabs"><button data-tab="phase5" class="${state.tab==="phase5"?"active":""}" onclick="changeTab('phase5')">PHASE 5 · Graph</button><button data-tab="phase4" class="${state.tab==="phase4"?"active":""}" onclick="changeTab('phase4')">PHASE 4 · RAG</button><button data-tab="phase3" class="${state.tab==="phase3"?"active":""}" onclick="changeTab('phase3')">PHASE 3 · JSON</button><button data-tab="phase2" class="${state.tab==="phase2"?"active":""}" onclick="changeTab('phase2')">PHASE 2 · LLM</button><button data-tab="diagram" class="${state.tab==="diagram"?"active":""}" onclick="changeTab('diagram')">Sơ đồ tổng hợp</button><button data-tab="timeline" class="${state.tab==="timeline"?"active":""}" onclick="changeTab('timeline')">Timeline</button><button data-tab="report" class="${state.tab==="report"?"active":""}" onclick="changeTab('report')">Báo cáo</button></div>
  <div id="result-content">${renderResultTab()}</div>`;
 }
 function renderResultTab(){return state.tab==="phase5"?phase5View():state.tab==="phase4"?phase4View():state.tab==="phase3"?phase3View():state.tab==="phase2"?phase2View():state.tab==="diagram"?diagram():state.tab==="timeline"?timeline():report()}
@@ -97,12 +97,74 @@ function phase2View(){
  <div class="structured-list">${rows.map(s=>`<div class="structured-step"><div class="step-number">${String(s.step).padStart(2,"0")}</div><div class="step-main"><small>ACTION</small><b>${esc(s.action)}</b><span>${esc(s.actor)} <i>→</i> ${esc(s.target)}</span></div><div><small>ASSET</small><b>${esc(s.asset)}</b></div><div><small>SEVERITY</small><span class="severity ${(s.severity||"unknown").toLowerCase()}">${esc(s.severity)}</span></div><div><small>MITRE TACTIC</small><b class="${s.mitre_tactic==="Unknown"?"unknown":""}">${esc(s.mitre_tactic)}</b></div></div>`).join("")}</div>
  <details class="json-preview"><summary>JSON structured output</summary><pre>${esc(JSON.stringify(rows,null,2))}</pre></details></div>`;
 }
+function knownText(value){
+ if(Array.isArray(value))return value.map(knownText).filter(Boolean).join(" · ");
+ const text=String(value==null?"":value).trim();
+ return text&&!["unknown","none","null","n/a"].includes(text.toLowerCase())?text:"";
+}
+function firstKnown(...values){for(const value of values){const text=knownText(value);if(text)return text}return ""}
+function diagramSteps(result){
+ const canonical=result&&result.structured_json&&result.structured_json.steps;
+ if(Array.isArray(canonical)&&canonical.length)return canonical;
+ return (result&&result.steps||[]).map((step,index)=>({
+  order:index+1,actor:step.source,action:step.action,target:step.target,asset:"Unknown",
+  severity:"Unknown",mitre:{tactic:step.tactic,technique_id:step.techniqueId},
+  evidence:step.description,detection:step.detection
+ }));
+}
+function selectedMitreMatch(step){
+ const matches=step&&step.rag&&Array.isArray(step.rag.matches)?step.rag.matches:[];
+ const technique=step&&step.mitre?step.mitre.technique_id:"";
+ return matches.find(match=>match.technique_id===technique)||matches[0]||null;
+}
+function similarityLabel(value){
+ if(value==null||value==="")return "";
+ const number=Number(value);
+ return Number.isFinite(number)?`SIM ${number.toFixed(3)}`:"";
+}
+function severityClass(value){
+ const name=String(value||"").toLowerCase();
+ return ["critical","high","medium","low"].includes(name)?name:"unknown";
+}
 function diagram(){
- const r=state.result,s=r.steps[state.selected];
- return `<div class="diagram-area" id="diagram-area"><div class="diagram-toolbar"><div>⌁ Attack flow</div><span>${r.steps.length} bước</span></div>
- <div class="flow">${r.steps.map((x,i)=>`${i?'<div class="connector"><i></i>›</div>':""}<button class="node ${state.selected===i?"selected":""}" onclick="selectStep(${i})"><div class="node-icon c${i%5}">${x.icon}</div><span>BƯỚC ${i+1}</span><b>${esc(x.action)}</b><small>${x.techniqueId}</small></button>`).join("")}</div>
- <div class="detail-card"><div class="detail-top"><div class="node-icon c${state.selected%5}">◎</div><div><span>${esc(s.tactic)}</span><h3>${esc(s.action)}</h3></div><span class="tech-id">${s.techniqueId}</span></div><p>${esc(s.description)}</p>
- <div class="detail-grid"><div><small>NGUỒN</small><b>${esc(s.source)}</b></div><div><small>MỤC TIÊU</small><b>${esc(s.target)}</b></div><div><small>PHÁT HIỆN</small><b>${esc(s.detection)}</b></div></div></div></div>`;
+ const r=state.result||{},d=r.structured_json||{},steps=diagramSteps(r);
+ if(!steps.length)return '<div class="attack-empty">Không có bước tấn công để tổng hợp.</div>';
+ if(state.selected>=steps.length)state.selected=0;
+ const s=steps[state.selected],mitre=s.mitre||{},matches=s.rag&&Array.isArray(s.rag.matches)?s.rag.matches:[],best=selectedMitreMatch(s);
+ const knowledge=s.knowledge&&Array.isArray(s.knowledge.matches)?s.knowledge.matches:[],metadata=d.metadata||{},ragMeta=metadata.rag||{},knowledgeMeta=metadata.knowledge||{};
+ const tactics=[...new Set(steps.map(step=>firstKnown(step.mitre&&step.mitre.tactic)).filter(Boolean))];
+ const techniques=[...new Set(steps.map(step=>firstKnown(step.mitre&&step.mitre.technique_id)).filter(Boolean))];
+ const actors=[...new Set(steps.map(step=>firstKnown(step.actor)).filter(Boolean))];
+ const assets=[...new Set(steps.map(step=>firstKnown(step.asset)).filter(Boolean))];
+ const sources=Array.isArray(knowledgeMeta.sources)?knowledgeMeta.sources:[...new Set(steps.flatMap(step=>(step.knowledge&&step.knowledge.matches||[]).map(match=>match.source)).filter(Boolean))];
+ const score=similarityLabel(s.rag_confidence!=null?s.rag_confidence:best&&best.score);
+ const techniqueName=firstKnown(best&&best.technique_name,"Chưa xác định tên kỹ thuật");
+ const description=firstKnown(best&&best.description,s.evidence,"Chưa có mô tả ATT&CK.");
+ const detection=firstKnown(s.detection,best&&best.detection,"Chưa có hướng dẫn phát hiện.");
+ const mitigation=firstKnown(s.mitigation,best&&best.mitigation,"Chưa có biện pháp giảm thiểu.");
+ const procedure=firstKnown(s.procedure,best&&best.procedure,"Chưa có procedure mẫu.");
+ const incidentName=firstKnown(d.incident_name,r.incidentName,"Cyber Security Incident");
+ const incidentSummary=firstKnown(d.summary,r.executiveSummary,`${steps.length} bước tấn công đã được tổng hợp.`);
+ return `<div class="attack-overview diagram-area" id="diagram-area">
+ <div class="attack-toolbar"><div><span>OUTPUT</span><div><b>Attack Flow tổng hợp</b><small>LLM → Structured JSON → MITRE ATT&CK RAG → Knowledge Base</small></div></div><div class="attack-summary"><span><b>${steps.length}</b> bước</span><span><b>${techniques.length}</b> kỹ thuật</span><span><b>${tactics.length}</b> tactics</span></div></div>
+ <section class="attack-incident"><div><small>SỰ CỐ ĐÃ HỢP NHẤT</small><h3>${esc(incidentName)}</h3><p>${esc(incidentSummary)}</p></div><div class="attack-source-status"><span class="${metadata.rag?"ready":""}">MITRE RAG · ${esc(firstKnown(ragMeta.backend,ragMeta.store,"sẵn sàng"))}</span><span class="${knowledgeMeta.ready?"ready":""}">KB · ${knowledgeMeta.matches||0} bằng chứng</span><span>${actors.length} actor · ${assets.length} asset</span></div></section>
+ <div class="attack-flow" aria-label="Chuỗi bước tấn công">${steps.map((step,index)=>{const stepMitre=step.mitre||{},stepBest=selectedMitreMatch(step),stepScore=similarityLabel(step.rag_confidence!=null?step.rag_confidence:stepBest&&stepBest.score);return `${index?'<div class="attack-connector"><i></i><b>›</b></div>':""}<button class="attack-node ${state.selected===index?"selected":""}" style="--node-color:${graphColor(stepMitre.tactic)}" onclick="selectStep(${index})"><span class="attack-node-order">BƯỚC ${String(step.order||index+1).padStart(2,"0")}</span><strong>${esc(firstKnown(step.action,"Unknown Action"))}</strong><small>${esc(firstKnown(stepMitre.tactic,"Unknown tactic"))}</small><div><em>${esc(firstKnown(stepMitre.technique_id,"Unknown"))}</em><i class="${severityClass(step.severity)}">${esc(firstKnown(step.severity,"Unknown"))}</i></div>${stepScore?`<span class="attack-node-score" title="Cosine similarity, không phải xác suất">${stepScore}</span>`:""}</button>`}).join("")}</div>
+ <section class="attack-detail">
+  <div class="attack-detail-head"><div><span>STEP ${String(s.order||state.selected+1).padStart(2,"0")} / ${String(steps.length).padStart(2,"0")}</span><h3>${esc(firstKnown(s.action,"Unknown Action"))}</h3></div><div class="attack-detail-tags"><span class="severity ${severityClass(s.severity)}">${esc(firstKnown(s.severity,"Unknown"))}</span><span class="tech-id">${esc(firstKnown(mitre.technique_id,"Unknown"))}</span>${score?`<span class="similarity" title="Cosine similarity, không phải xác suất">${score}</span>`:""}</div></div>
+  <div class="attack-detail-layout">
+   <article class="attack-context"><div class="attack-section-title"><span>01</span><div><b>Ngữ cảnh hành vi</b><small>Dữ liệu trích xuất từ mô tả đầu vào</small></div></div>
+    <div class="attack-facts"><div><small>ACTOR / NGUỒN</small><b>${esc(firstKnown(s.actor,"Chưa xác định"))}</b></div><div><small>TARGET / MỤC TIÊU</small><b>${esc(firstKnown(s.target,"Chưa xác định"))}</b></div><div><small>ASSET</small><b>${esc(firstKnown(s.asset,"Chưa xác định"))}</b></div><div><small>TACTIC</small><b>${esc(firstKnown(mitre.tactic,"Unknown"))}</b></div></div>
+    <div class="attack-evidence"><small>EVIDENCE TỪ INPUT</small><p>${esc(firstKnown(s.evidence,"Không có đoạn bằng chứng riêng cho bước này."))}</p></div>
+   </article>
+   <article class="attack-intel"><div class="attack-section-title violet"><span>02</span><div><b>MITRE ATT&CK Intelligence</b><small>Kết quả ánh xạ semantic từ PHASE 4</small></div></div>
+    <div class="attack-mapping"><div><small>KỸ THUẬT ĐƯỢC CHỌN</small><b>${esc(firstKnown(mitre.technique_id,"Unknown"))} · ${esc(techniqueName)}</b></div>${score?`<span title="Cosine similarity, không phải xác suất">${score}</span>`:""}</div>
+    <p class="attack-description">${esc(shortText(description,520))}</p>
+    <div class="attack-response-grid"><div><small>PHÁT HIỆN</small><p>${esc(shortText(detection,420))}</p></div><div><small>GIẢM THIỂU</small><p>${esc(shortText(mitigation,420))}</p></div><div><small>PROCEDURE</small><p>${esc(shortText(procedure,420))}</p></div></div>
+   </article>
+  </div>
+  <details class="attack-rag-details" ${matches.length?"":"disabled"}><summary><span>RAG candidates</span><b>${matches.length} kết quả semantic</b><em>${esc(firstKnown(s.rag&&s.rag.query,"Không có truy vấn RAG"))}</em></summary><div class="attack-candidate-list">${matches.length?matches.map(match=>{const candidateScore=similarityLabel(match.score),selected=match.technique_id===mitre.technique_id;return `<article class="${selected?"selected":""}"><div><span>${selected?"SELECTED":"CANDIDATE"}</span><b>${esc(firstKnown(match.technique_id,"Unknown"))} · ${esc(firstKnown(match.technique_name,"Unknown technique"))}</b>${candidateScore?`<em>${candidateScore}</em>`:""}</div><small>${esc(firstKnown(match.tactics,"Unknown tactic"))}</small><p>${esc(shortText(firstKnown(match.description,"Không có mô tả."),280))}</p></article>`}).join(""):'<div class="attack-empty-inline">RAG chưa trả về ứng viên cho bước này.</div>'}</div></details>
+  <details class="attack-kb-details" ${knowledge.length?"":"disabled"}><summary><span>Knowledge evidence</span><b>${knowledge.length} tài liệu liên quan</b><em>${sources.length?esc(sources.join(" · ")):"Chưa có nguồn đa dữ liệu"}</em></summary><div class="attack-kb-list">${knowledge.length?knowledge.map(match=>{const meta=match.metadata&&typeof match.metadata==="object"?Object.entries(match.metadata):[];return `<article><div><span>${esc(firstKnown(match.source,"knowledge"))}</span><small>${esc(firstKnown(match.document_type,"document"))}</small></div><b>${esc(firstKnown(match.title,"Untitled evidence"))}</b><p>${esc(shortText(firstKnown(match.snippet,"Không có trích đoạn."),360))}</p>${match.origin?`<em title="${esc(match.origin)}">${esc(shortText(match.origin,120))}</em>`:""}${meta.length?`<div class="attack-kb-meta">${meta.map(([key,value])=>`<span>${esc(key)}: ${esc(knownText(value))}</span>`).join("")}</div>`:""}</article>`}).join(""):'<div class="attack-empty-inline">Knowledge Base chưa có bằng chứng liên quan cho bước này.</div>'}</div></details>
+ </section></div>`;
 }
 function timeline(){return `<div class="timeline">${state.result.steps.map((s,i)=>`<div class="timeline-row"><div class="time-dot"><i></i>${i<state.result.steps.length-1?"<span></span>":""}</div><div class="timeline-content"><small>GIAI ĐOẠN ${i+1} · ${esc(s.tactic)}</small><h3>${esc(s.action)} <em>${s.techniqueId}</em></h3><p>${esc(s.description)}</p></div></div>`).join("")}</div>`}
 function report(){const r=state.result;return `<div class="report"><div class="report-block"><h3>ⓘ Tóm tắt điều hành</h3><p>${esc(r.executiveSummary)}</p></div><div class="report-cols"><div class="report-block"><h3>◎ Chỉ dấu & thực thể</h3>${r.entities.map(x=>`<span class="entity">${esc(x)}</span>`).join("")}</div><div class="report-block"><h3>✓ Khuyến nghị ưu tiên</h3><ol>${r.recommendations.map(x=>`<li>${esc(x)}</li>`).join("")}</ol></div></div></div>`}

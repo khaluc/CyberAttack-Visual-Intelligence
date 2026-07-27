@@ -26,7 +26,8 @@ def test_homepage_bootstraps_before_optional_api_status_calls():
 
     assets = (
         "styles.css", "settings.css", "phase1.css", "phase2.css",
-        "phase3.css", "phase4.css", "phase5.css", "confidence.css", "app.js",
+        "phase3.css", "phase4.css", "phase5.css", "diagram.css",
+        "confidence.css", "favicon.svg", "app.js",
     )
     for filename in assets:
         asset = client.get(f"/static/{filename}")
