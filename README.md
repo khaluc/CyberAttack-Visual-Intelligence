@@ -8,6 +8,13 @@ Giao diện web hiện có trong `templates/` và `static/` được giữ nguy�
 Flask cung cấp toàn bộ pipeline PHASE 1–5, API quản trị dữ liệu, renderer và
 report generator.
 
+## Giao diện
+
+[![Giao diện CyberVision AI](docs/images/cybervision-ui.png)](docs/images/cybervision-ui.png)
+
+Giao diện Flask gồm khu vực nhập mô tả hoặc tải tài liệu, kết quả phân tích theo
+PHASE 2–5, Structured JSON, MITRE ATT&CK mapping, attack graph, timeline và báo cáo.
+
 ## Kiến trúc hiện tại
 
 Luồng xử lý chính:
