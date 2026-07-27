@@ -15,6 +15,71 @@ report generator.
 Giao diện Flask gồm khu vực nhập mô tả hoặc tải tài liệu, kết quả phân tích theo
 PHASE 2–5, Structured JSON, MITRE ATT&CK mapping, attack graph, timeline và báo cáo.
 
+### Giao diện từng phần
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>PHASE 1 — Input &amp; Document Parser</b><br>
+      <a href="docs/images/sections/01-input-parser.png"><img src="docs/images/sections/01-input-parser.png" alt="PHASE 1 Input and Document Parser"></a>
+    </td>
+    <td width="50%" valign="top">
+      <b>PHASE 2 — GLM-5.2 Vietnamese Understanding</b><br>
+      <a href="docs/images/sections/02-phase2-llm.png"><img src="docs/images/sections/02-phase2-llm.png" alt="PHASE 2 GLM-5.2 Vietnamese Understanding"></a>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>PHASE 3 — Canonical Structured JSON</b><br>
+      <a href="docs/images/sections/03-phase3-json.png"><img src="docs/images/sections/03-phase3-json.png" alt="PHASE 3 Canonical Structured JSON"></a>
+    </td>
+    <td width="50%" valign="top">
+      <b>PHASE 4 — MITRE ATT&amp;CK Semantic RAG</b><br>
+      <a href="docs/images/sections/04-phase4-rag.png"><img src="docs/images/sections/04-phase4-rag.png" alt="PHASE 4 MITRE ATTACK Semantic RAG"></a>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>PHASE 5 — Graphviz / Mermaid / NetworkX</b><br>
+      <a href="docs/images/sections/05-phase5-graph.png"><img src="docs/images/sections/05-phase5-graph.png" alt="PHASE 5 Graph Generation"></a>
+    </td>
+    <td width="50%" valign="top">
+      <b>Attack Flow Diagram</b><br>
+      <a href="docs/images/sections/06-attack-flow.png"><img src="docs/images/sections/06-attack-flow.png" alt="Attack Flow Diagram"></a>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>MITRE Tactic Timeline</b><br>
+      <a href="docs/images/sections/07-timeline.png"><img src="docs/images/sections/07-timeline.png" alt="MITRE Tactic Timeline"></a>
+    </td>
+    <td width="50%" valign="top">
+      <b>Detailed Incident Report</b><br>
+      <a href="docs/images/sections/08-report.png"><img src="docs/images/sections/08-report.png" alt="Detailed Incident Report"></a>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Operations Dashboard</b><br>
+      <a href="docs/images/sections/09-dashboard.png"><img src="docs/images/sections/09-dashboard.png" alt="Operations Dashboard"></a>
+    </td>
+    <td width="50%" valign="top">
+      <b>Multi-source Knowledge Base</b><br>
+      <a href="docs/images/sections/10-knowledge-base.png"><img src="docs/images/sections/10-knowledge-base.png" alt="Multi-source Knowledge Base"></a>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>LLM &amp; API Configuration</b><br>
+      <a href="docs/images/sections/11-llm-settings.png"><img src="docs/images/sections/11-llm-settings.png" alt="LLM and API Configuration"></a>
+    </td>
+    <td width="50%" valign="top">
+      <b>Analysis History</b><br>
+      <a href="docs/images/sections/12-history.png"><img src="docs/images/sections/12-history.png" alt="Analysis History"></a>
+    </td>
+  </tr>
+</table>
+
 ## Kiến trúc hiện tại
 
 Luồng xử lý chính:
