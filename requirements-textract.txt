@@ -1,0 +1,5 @@
+# Optional legacy fallback for .doc and difficult scanned/embedded documents.
+# On Windows, textract may also require external tools such as antiword or tesseract.
+textract==2.0.0
+# Keep compatibility with Requests while satisfying textract>=2.
+chardet>=5.2,<6

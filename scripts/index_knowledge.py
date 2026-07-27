@@ -1,0 +1,53 @@
+"""Index knowledge files that are already present on disk.
+
+This command does not download or replace source files. Use
+``scripts/sync_knowledge.py`` when a fresh upstream copy is required.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+os.chdir(PROJECT_ROOT)
+
+import config_store  # noqa: E402,F401 - loads the project .env
+from knowledge_base import get_knowledge_base  # noqa: E402
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "source",
+        nargs="?",
+        default="all",
+        help="all, sigma, yara, threat_intelligence, nist_cis, playbooks, ...",
+    )
+    parser.add_argument(
+        "--status-output",
+        type=Path,
+        help="Optional JSON file that receives the final result.",
+    )
+    args = parser.parse_args()
+
+    knowledge = get_knowledge_base(refresh=True)
+    result = (
+        knowledge.ingest_all()
+        if args.source.strip().lower() == "all"
+        else knowledge.ingest_source(args.source)
+    )
+    text = json.dumps(result, ensure_ascii=False, indent=2)
+    print(text, flush=True)
+    if args.status_output:
+        args.status_output.parent.mkdir(parents=True, exist_ok=True)
+        args.status_output.write_text(text, encoding="utf-8")
+    return 0 if result.get("ok", True) else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

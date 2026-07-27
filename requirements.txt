@@ -1,0 +1,32 @@
+# Python dependencies. Native Graphviz `dot`, Node.js, Mermaid CLI, Chrome and
+# the optional @oai/artifact-tool PPTX runtime are documented in README.md and
+# cannot be installed by pip.
+
+# Flask and document parsing
+Flask>=3.0,<4
+pdfplumber>=0.11,<1
+PyMuPDF>=1.24,<2
+python-docx>=1.1,<2
+python-evtx>=0.8,<1
+
+# Semantic embeddings and vector stores
+chromadb>=0.6,<1
+sentence-transformers>=3,<6
+qdrant-client>=1.12,<2
+faiss-cpu>=1.8,<2
+numpy>=1.25,<2
+
+# Graph and knowledge processing
+graphviz>=0.20,<1
+networkx>=3,<4
+matplotlib>=3.8,<4
+PyYAML>=6,<7
+
+# Pipeline orchestration
+langchain>=0.3,<1
+langchain-core>=0.3,<1
+llama-index-core>=0.12,<1
+
+# Server-side reports and report verification
+reportlab>=4,<5
+pypdf>=5,<7
