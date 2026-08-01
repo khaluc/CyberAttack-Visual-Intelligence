@@ -25,6 +25,16 @@ TACTIC_COLORS = {
     "Impact": "#df4654", "Unknown": "#607086",
 }
 
+TACTIC_FILLS = {
+    "Initial Access": "#DBEAFE", "Execution": "#EDE9FE",
+    "Persistence": "#F3E8FF", "Privilege Escalation": "#FCE7F3",
+    "Defense Evasion": "#FEE2E2", "Credential Access": "#FFEDD5",
+    "Discovery": "#FEF3C7", "Lateral Movement": "#DCFCE7",
+    "Collection": "#CCFBF1", "Command And Control": "#DBEAFE",
+    "Command and Control": "#DBEAFE", "Exfiltration": "#FCE7F3",
+    "Impact": "#FFE4E6", "Unknown": "#E2E8F0",
+}
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
@@ -79,17 +89,21 @@ def build_graph_model(structured):
 
 def to_dot(graph):
     lines = [
-        "digraph CyberVisionAttack {", '  graph [rankdir=LR, bgcolor="#07111f", pad="0.35", nodesep="0.5", ranksep="0.65"];',
-        '  node [shape=box, style="rounded,filled", fontname="Arial", fontcolor="white", color="#274057", penwidth=1.2, margin="0.14,0.10"];',
-        '  edge [color="#3d6883", fontname="Arial", fontcolor="#7994aa", arrowsize=0.75, penwidth=1.4];',
-        f'  label="{_dot(graph["incident_name"])}"; labelloc="t"; fontname="Arial"; fontcolor="#dce8f4"; fontsize=18;',
+        "digraph CyberVisionAttack {", '  graph [rankdir=LR, bgcolor="#F8FAFC", pad="0.35", nodesep="0.5", ranksep="0.65"];',
+        '  node [shape=box, style="rounded,filled", fontname="Arial", fontcolor="#0F172A", color="#CBD5E1", penwidth=1.4, margin="0.14,0.10"];',
+        '  edge [color="#64748B", fontname="Arial", fontcolor="#475569", arrowsize=0.75, penwidth=1.4];',
+        f'  label="{_dot(graph["incident_name"])}"; labelloc="t"; fontname="Arial"; fontcolor="#10233F"; fontsize=18;',
     ]
     for node in graph["nodes"]:
         label = (
             f'{node["order"]:02d}  {node["label"]}\n'
             f'{node["technique_id"]} · {node["tactic"]}'
         )
-        lines.append(f'  {node["id"]} [label="{_dot(label)}", fillcolor="{node["color"]}"];')
+        fill = TACTIC_FILLS.get(node["tactic"], TACTIC_FILLS["Unknown"])
+        lines.append(
+            f'  {node["id"]} [label="{_dot(label)}", fillcolor="{fill}", '
+            f'color="{node["color"]}"];'
+        )
     for edge in graph["edges"]:
         lines.append(f'  {edge["source"]} -> {edge["target"]} [label="{edge["weight"]:.2f}"];')
     lines.append("}")
@@ -101,7 +115,10 @@ def to_mermaid(graph):
     for node in graph["nodes"]:
         label = _mermaid(f'{node["order"]:02d} · {node["label"]}<br/>{node["technique_id"]} · {node["tactic"]}')
         lines.append(f'  {node["id"]}["{label}"]')
-        lines.append(f'  style {node["id"]} fill:{node["color"]},stroke:#4b6b82,color:#fff')
+        fill = TACTIC_FILLS.get(node["tactic"], TACTIC_FILLS["Unknown"])
+        lines.append(
+            f'  style {node["id"]} fill:{fill},stroke:{node["color"]},color:#0f172a'
+        )
     for edge in graph["edges"]:
         lines.append(f'  {edge["source"]} -->|{edge["weight"]:.2f}| {edge["target"]}')
     return "\n".join(lines)
@@ -236,7 +253,7 @@ def _render_mermaid(graph, output_format):
                 "--output",
                 str(output),
                 "--theme",
-                "dark",
+                "neutral",
                 "--backgroundColor",
                 "transparent",
                 "--puppeteerConfigFile",
@@ -385,17 +402,19 @@ def _networkx_artifact(graph, output_format):
     for edge in graph["edges"]:
         network.add_edge(edge["source"], edge["target"], weight=edge["weight"], label=edge["label"])
     count = len(graph["nodes"])
-    figure, axis = plt.subplots(figsize=(max(10, count * 2.35), 5.3), facecolor="#07111f")
-    axis.set_facecolor("#07111f")
+    figure, axis = plt.subplots(figsize=(max(10, count * 2.35), 5.3), facecolor="#F8FAFC")
+    axis.set_facecolor("#F8FAFC")
     positions = {node["id"]: (index * 2.4, math.sin(index * .7) * .12) for index, node in enumerate(graph["nodes"])}
-    colors = [node["color"] for node in graph["nodes"]]
+    colors = [TACTIC_FILLS.get(node["tactic"], TACTIC_FILLS["Unknown"])
+              for node in graph["nodes"]]
+    borders = [node["color"] for node in graph["nodes"]]
     labels = {node["id"]: f'{node["order"]:02d}\n{node["label"]}\n{node["technique_id"]}' for node in graph["nodes"]}
     nx.draw_networkx_nodes(network, positions, node_color=colors, node_size=4100,
-                           edgecolors="#52738a", linewidths=1.3, node_shape="s", ax=axis)
-    nx.draw_networkx_edges(network, positions, edge_color="#4c8098", width=1.8,
+                           edgecolors=borders, linewidths=1.5, node_shape="s", ax=axis)
+    nx.draw_networkx_edges(network, positions, edge_color="#64748B", width=1.8,
                            arrows=True, arrowsize=18, connectionstyle="arc3,rad=0.02", ax=axis)
-    nx.draw_networkx_labels(network, positions, labels, font_color="white", font_size=8, ax=axis)
-    axis.set_title(graph["incident_name"], color="#dfeaf5", fontsize=16, pad=18)
+    nx.draw_networkx_labels(network, positions, labels, font_color="#0F172A", font_size=8, ax=axis)
+    axis.set_title(graph["incident_name"], color="#10233F", fontsize=16, pad=18)
     axis.axis("off")
     figure.tight_layout()
     output = io.BytesIO()

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#07101f">
+  <meta name="theme-color" content="#f4f7fb">
   <title>CyberVision AI</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='phase5.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='diagram.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='confidence.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='light-theme.css') }}">
 </head>
 <body>
   <div id="app"></div>
@@ -23,7 +24,7 @@
     window.addEventListener("error", function (event) {
       var app = document.getElementById("app");
       if (app && !app.innerHTML) {
-        app.innerHTML = '<div style="padding:24px;color:#ff9aa7;font:14px monospace">' +
+        app.innerHTML = '<div style="margin:24px;padding:18px;color:#a61b36;background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;font:14px monospace">' +
           'Frontend error: ' + String(event.message) + ' (' + String(event.lineno) + ':' +
           String(event.colno) + ')</div>';
       }

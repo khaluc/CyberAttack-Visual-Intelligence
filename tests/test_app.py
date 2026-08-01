@@ -23,16 +23,21 @@ def test_homepage_bootstraps_before_optional_api_status_calls():
     assert response.status_code == 200
     assert b'id="app"' in response.data
     assert b"/static/app.js" in response.data
+    assert b'name="theme-color" content="#f4f7fb"' in response.data
 
     assets = (
         "styles.css", "settings.css", "phase1.css", "phase2.css",
         "phase3.css", "phase4.css", "phase5.css", "diagram.css",
-        "confidence.css", "favicon.svg", "app.js",
+        "confidence.css", "light-theme.css", "favicon.svg", "app.js",
     )
     for filename in assets:
         asset = client.get(f"/static/{filename}")
         assert asset.status_code == 200, filename
         assert asset.data, filename
+
+    light_theme = client.get("/static/light-theme.css").data
+    assert b"color-scheme:light" in light_theme
+    assert b"--surface:#ffffff" in light_theme
 
     script = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
     bootstrap = "render();\nvoid loadConfig();\nvoid loadVectorBackends();"

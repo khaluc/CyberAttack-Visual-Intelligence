@@ -40,6 +40,8 @@ Hệ thống kết hợp bốn thành phần chính:
 
 CyberVision AI được xây dựng theo hướng end-to-end: từ nhập text hoặc tài liệu,
 phân tích bằng LLM, ánh xạ ATT&CK, dựng graph đến xuất báo cáo phía server.
+Toàn bộ workspace sử dụng giao diện sáng, responsive và nhất quán cho cả màn
+hình nhập liệu, các PHASE phân tích, dashboard, sơ đồ và kho tri thức.
 
 ---
 
@@ -109,6 +111,7 @@ Demo tập trung vào bốn giao diện chính:
 - Hiển thị Sơ đồ tổng hợp và MITRE tactic timeline.
 - Xuất JSON, DOT, Mermaid, SVG, PNG, PDF, DOCX và PPTX.
 - Cấu hình LLM, API key, model, provider và system prompt ngay trên giao diện.
+- Giao diện sáng responsive, hỗ trợ desktop và thiết bị di động.
 
 ---
 
