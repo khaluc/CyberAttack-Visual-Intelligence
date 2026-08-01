@@ -36,6 +36,7 @@ class LLMConfig:
     temperature: float = 0.1
     timeout: int = 60
     rag_enabled: bool = True
+    localize_rag: bool = True
     system_prompt: str = ""
     azure_api_version: str = "2024-10-21"
 
@@ -53,6 +54,7 @@ class LLMConfig:
             temperature=float(os.getenv("LLM_TEMPERATURE", "0.1")),
             timeout=int(os.getenv("LLM_TIMEOUT", "60")),
             rag_enabled=os.getenv("RAG_ENABLED", "true").lower() == "true",
+            localize_rag=os.getenv("RAG_LOCALIZATION_ENABLED", "true").lower() == "true",
             system_prompt=os.getenv("LLM_SYSTEM_PROMPT", ""),
             azure_api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
         )
@@ -68,7 +70,7 @@ class LLMConfig:
 SYSTEM_PROMPT = """Bạn là chuyên gia DFIR và MITRE ATT&CK. Phân tích mô tả sự cố tiếng Việt.
 Chỉ trả về một JSON object hợp lệ, không markdown, theo schema:
 {
- "incidentName": "string",
+ "incidentName": "string tiếng Việt",
  "severity": "critical|high|medium|low",
  "confidence": 0-100,
  "entities": ["string"],
@@ -76,8 +78,9 @@ Chỉ trả về một JSON object hợp lệ, không markdown, theo schema:
    "action": "string ngắn bằng tiếng Việt",
    "tactic": "MITRE tactic English",
    "techniqueId": "Txxxx hoặc Txxxx.xxx",
-   "description": "string",
-   "source": "string", "target": "string", "detection": "string",
+   "description": "string tiếng Việt",
+   "source": "string tiếng Việt", "target": "string tiếng Việt",
+   "detection": "string tiếng Việt",
    "icon": "một ký tự"
  }],
  "executiveSummary": "string tiếng Việt",
@@ -93,15 +96,86 @@ Nhiệm vụ:
 - Nếu dữ liệu không nói rõ Actor, Target hoặc Asset, dùng "Unknown".
 - Nếu chưa chắc chắn MITRE tactic, bắt buộc dùng "Unknown"; không suy đoán.
 - Severity chỉ được là Critical, High, Medium, Low hoặc Unknown.
-- Action viết ngắn gọn, rõ nghĩa bằng tiếng Anh.
+- Actor, Target, Action và Asset phải viết ngắn gọn, rõ nghĩa bằng tiếng Việt.
+- `mitre_tactic` và `technique_id` giữ đúng tên/ID chính thức của MITRE ATT&CK bằng tiếng Anh.
+- Tạo `retrieval_query_en` bằng tiếng Anh để tìm semantic trong ATT&CK; không dùng trường này để hiển thị.
 
 Chỉ trả về JSON object hợp lệ, không markdown:
 {"steps":[
-  {"step":1,"actor":"Attacker","action":"Send phishing email",
-   "target":"Employee","asset":"Email account","severity":"High",
-   "mitre_tactic":"Initial Access"}
+  {"step":1,"actor":"Kẻ tấn công","action":"Gửi email lừa đảo",
+   "target":"Nhân viên","asset":"Tài khoản email","severity":"High",
+   "mitre_tactic":"Initial Access","technique_id":"T1566",
+   "retrieval_query_en":"attacker sends phishing email to employee email account"}
 ]}
 Không thêm nội dung ngoài JSON."""
+
+PHASE2_OUTPUT_CONTRACT = """YÊU CẦU ĐẦU RA BẮT BUỘC:
+- Chỉ trả JSON object có mảng `steps`, tuyệt đối không markdown.
+- `actor`, `action`, `target`, `asset` phải là tiếng Việt.
+- `severity` chỉ là Critical, High, Medium, Low hoặc Unknown.
+- `mitre_tactic` và `technique_id` giữ chuẩn MITRE ATT&CK bằng tiếng Anh.
+- Mỗi bước phải có `retrieval_query_en` bằng tiếng Anh để phục vụ RAG.
+- Không dịch hoặc thay đổi ATT&CK ID, CVE, IOC, hash, IP, domain, tên tiến trình hay câu lệnh."""
+
+_RETRIEVAL_HINTS_EN = {
+    "T1190": "exploit public-facing application vulnerability",
+    "T1204": "user execution malicious file",
+    "T1204.002": "user execution malicious file attachment",
+    "T1059.001": "execute PowerShell command script",
+    "T1105": "ingress tool transfer download malware payload",
+    "T1071.001": "command and control web protocol connection",
+    "T1555.003": "credentials from web browser credential store",
+    "T1056": "input capture credential theft",
+    "T1021": "remote services lateral movement",
+    "T1560.001": "archive collected data compression",
+    "T1041": "exfiltration over command and control channel",
+    "T1486": "data encrypted for impact ransomware",
+    "T1490": "inhibit system recovery delete backups",
+    "T1566": "phishing",
+    "T1566.001": "spearphishing attachment",
+    "T1566.002": "spearphishing link",
+}
+
+_VIETNAMESE_QUERY_RE = re.compile(
+    r"[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩị"
+    r"óòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]",
+    re.IGNORECASE,
+)
+
+_MITRE_TACTICS = (
+    "Reconnaissance",
+    "Resource Development",
+    "Initial Access",
+    "Execution",
+    "Persistence",
+    "Privilege Escalation",
+    "Defense Evasion",
+    "Credential Access",
+    "Discovery",
+    "Lateral Movement",
+    "Collection",
+    "Command and Control",
+    "Exfiltration",
+    "Impact",
+)
+_TACTIC_ALIASES = {value.casefold(): value for value in _MITRE_TACTICS}
+_TACTIC_ALIASES.update({
+    "trinh sát": "Reconnaissance",
+    "phát triển nguồn lực": "Resource Development",
+    "truy cập ban đầu": "Initial Access",
+    "thực thi": "Execution",
+    "duy trì hiện diện": "Persistence",
+    "nâng quyền": "Privilege Escalation",
+    "né tránh phòng thủ": "Defense Evasion",
+    "truy cập thông tin xác thực": "Credential Access",
+    "khám phá": "Discovery",
+    "di chuyển ngang": "Lateral Movement",
+    "thu thập": "Collection",
+    "chỉ huy và điều khiển": "Command and Control",
+    "chỉ huy và kiểm soát": "Command and Control",
+    "đưa dữ liệu ra ngoài": "Exfiltration",
+    "gây ảnh hưởng": "Impact",
+})
 
 
 def _request(url, headers, payload, timeout):
@@ -176,7 +250,12 @@ def analyze_with_llm(description, config: LLMConfig, attack_context=""):
 
 def understand_phase2(description, config: LLMConfig):
     """PHASE 2: Vietnamese semantic decomposition with GLM-5.2."""
-    prompt = config.system_prompt.strip() or PHASE2_SYSTEM_PROMPT
+    custom_prompt = config.system_prompt.strip()
+    prompt = (
+        f"{custom_prompt}\n\n{PHASE2_OUTPUT_CONTRACT}"
+        if custom_prompt
+        else PHASE2_SYSTEM_PROMPT
+    )
     raw = _extract_json(_provider_call(config, [
         {"role": "system", "content": prompt},
         {"role": "user", "content": f"MÔ TẢ CẦN PHÂN TÍCH:\n{description}"},
@@ -201,11 +280,104 @@ def validate_phase2(data):
             "target": str(item.get("target") or "Unknown"),
             "asset": str(item.get("asset") or "Unknown"),
             "severity": severity if severity in valid_severity else "Unknown",
-            "mitre_tactic": str(item.get("mitre_tactic") or item.get("tactic") or "Unknown"),
+            "mitre_tactic": _canonical_mitre_tactic(
+                item.get("mitre_tactic") or item.get("tactic")
+            ),
+            "technique_id": _canonical_technique_id(
+                item.get("technique_id") or item.get("techniqueId")
+            ),
+            "retrieval_query_en": _retrieval_query_en(item),
         })
     if not steps:
         raise RuntimeError("GLM-5.2 không trích xuất được bước hành vi.")
     return steps
+
+
+def _fallback_retrieval_query(item):
+    """Keep legacy/custom prompts searchable without changing display text."""
+    value = " ".join(
+        str(item.get(field) or "")
+        for field in ("action", "actor", "target", "asset")
+    ).lower()
+    vocabulary = {
+        "chạy powershell": "execute powershell",
+        "email lừa đảo": "phishing email",
+        "email giả mạo": "phishing email",
+        "tệp độc hại": "malicious file",
+        "tệp đính kèm": "malicious attachment",
+        "thực thi": "execution",
+        "tải mã độc": "download malware",
+        "tải ransomware": "download ransomware",
+        "mã độc": "malware",
+        "thông tin đăng nhập": "credentials",
+        "kết nối c2": "command and control connection",
+        "mã hóa dữ liệu": "data encrypted for impact",
+        "xóa bản sao lưu": "delete backups inhibit system recovery",
+        "đưa dữ liệu ra ngoài": "data exfiltration",
+        "đánh cắp dữ liệu": "data exfiltration",
+        "khai thác lỗ hổng": "exploit public-facing application vulnerability",
+        "kẻ tấn công": "attacker",
+        "nhân viên": "employee",
+        "máy chủ web": "web server",
+        "máy chủ": "server",
+    }
+    translated = value
+    for source, target in vocabulary.items():
+        translated = translated.replace(source, target)
+    technique_id = _canonical_technique_id(
+        item.get("technique_id") or item.get("techniqueId")
+    )
+    tactic = _canonical_mitre_tactic(
+        item.get("mitre_tactic") or item.get("tactic")
+    )
+    parts = []
+    for part in (
+        technique_id if technique_id.lower() != "unknown" else "",
+        tactic if tactic.lower() != "unknown" and not _contains_vietnamese(part=tactic) else "",
+        _RETRIEVAL_HINTS_EN.get(technique_id, ""),
+        translated if not _contains_vietnamese(part=translated) else "",
+    ):
+        normalized = re.sub(r"\s+", " ", str(part or "")).strip()
+        if normalized and normalized not in parts:
+            parts.append(normalized)
+    return " | ".join(parts) or "cybersecurity suspicious activity"
+
+
+def _retrieval_query_en(item):
+    supplied = str(
+        item.get("retrieval_query_en") or item.get("retrieval_query") or ""
+    ).strip()
+    if supplied and not _contains_vietnamese(part=supplied):
+        return supplied
+    return _fallback_retrieval_query(item)
+
+
+def _contains_vietnamese(*, part):
+    text = str(part or "").strip().lower()
+    if not text:
+        return False
+    if _VIETNAMESE_QUERY_RE.search(text):
+        return True
+    markers = (
+        "kẻ tấn công", "ke tan cong", "nguoi dung", "nhan vien", "may chu",
+        "du lieu", "ma doc", "thong tin", "tai khoan", "thuc thi",
+        "phat hien", "giam thieu", "truy cap", "ket noi", "hanh vi",
+        "su co", "chay powershell", "tai ransomware", "tai ma doc",
+        "xoa ban sao", "email lua dao", "email gia mao",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _canonical_mitre_tactic(value):
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text or text.casefold() == "unknown":
+        return "Unknown"
+    return _TACTIC_ALIASES.get(text.casefold(), "Unknown")
+
+
+def _canonical_technique_id(value):
+    text = str(value or "").strip().upper()
+    return text if re.fullmatch(r"T\d{4}(?:\.\d{3})?", text) else "Unknown"
 
 
 def phase2_to_attack_result(steps):

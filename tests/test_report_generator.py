@@ -63,7 +63,7 @@ def test_generate_server_side_pdf(tmp_path):
     reader = PdfReader(str(destination))
     assert len(reader.pages) >= 1
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
-    assert "CYBERSECURITY INCIDENT REPORT" in text
+    assert "BÁO CÁO SỰ CỐ AN NINH MẠNG" in text
     assert "T1566.001" in text
 
 
@@ -74,7 +74,7 @@ def test_generate_docx_uses_explicit_business_brief_geometry(tmp_path):
         document_xml = archive.read("word/document.xml").decode("utf-8")
         styles_xml = archive.read("word/styles.xml").decode("utf-8")
         section_xml = document_xml
-    assert "CYBERSECURITY INCIDENT REPORT" in document_xml
+    assert "BÁO CÁO SỰ CỐ AN NINH MẠNG" in document_xml
     assert "T1566.001" in document_xml
     assert 'w:w="9360"' in document_xml
     assert 'w:w="120"' in document_xml
@@ -191,7 +191,7 @@ def test_report_docx_api_returns_server_generated_docx(tmp_path, monkeypatch):
     assert zipfile.is_zipfile(BytesIO(response.data))
     with zipfile.ZipFile(BytesIO(response.data)) as archive:
         document_xml = archive.read("word/document.xml").decode("utf-8")
-    assert "CYBERSECURITY INCIDENT REPORT" in document_xml
+    assert "BÁO CÁO SỰ CỐ AN NINH MẠNG" in document_xml
     assert "T1566.001" in document_xml
 
 

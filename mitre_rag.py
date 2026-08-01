@@ -236,8 +236,23 @@ class MITREAttackRAG:
         self.ensure_index()
         result = json.loads(json.dumps(structured))
         for step in result["steps"]:
-            query = " | ".join((step["action"], step["actor"], step["target"], step["asset"],
-                                step["mitre"]["tactic"]))
+            retrieval_query = str(
+                (step.get("retrieval") or {}).get("query_en") or ""
+            ).strip()
+            if retrieval_query.lower() in ("", "unknown", "none", "n/a"):
+                retrieval_query = " | ".join(
+                    (
+                        step["action"], step["actor"], step["target"],
+                        step["asset"], step["mitre"]["tactic"],
+                    )
+                )
+            query = " | ".join(
+                part for part in (
+                    retrieval_query,
+                    step["mitre"].get("technique_id", ""),
+                    step["mitre"]["tactic"],
+                ) if part and str(part).lower() != "unknown"
+            )
             query = _augment_security_query(query)
             matches = self.retrieve(query, max(self.config.top_k * 3, 10))
             expected_tactic = step["mitre"]["tactic"].lower()

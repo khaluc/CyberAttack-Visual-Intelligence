@@ -5,14 +5,14 @@ import { pathToFileURL } from "node:url";
 
 function arg(index, label) {
   const value = process.argv[index];
-  if (!value) throw new Error(`Missing ${label} argument`);
+  if (!value) throw new Error(`Thiếu tham số ${label}`);
   return path.resolve(value);
 }
 
-const inputPath = arg(2, "input JSON");
-const outputPath = arg(3, "output PPTX");
+const inputPath = arg(2, "JSON đầu vào");
+const outputPath = arg(3, "PPTX đầu ra");
 const moduleRoot = arg(4, "artifact-tool node_modules");
-const workspace = arg(5, "QA workspace");
+const workspace = arg(5, "thư mục QA");
 
 const requireFromScript = createRequire(import.meta.url);
 let artifactEntry;
@@ -22,7 +22,7 @@ try {
   });
 } catch (error) {
   throw new Error(
-    `Cannot resolve @oai/artifact-tool from ${moduleRoot}: ${error.message}`,
+    `Không thể nạp @oai/artifact-tool từ ${moduleRoot}: ${error.message}`,
   );
 }
 const { Presentation, PresentationFile } = await import(
@@ -45,23 +45,23 @@ await Promise.all([
 await fs.writeFile(
   path.join(workspace, "source-notes.txt"),
   [
-    "Source: User-provided PHASE 3 structured incident JSON",
-    `Incident ID: ${incident.incident_id}`,
-    `Created: ${incident.metadata?.created_at ?? "Unknown"}`,
-    "Slides: all incident claims are derived from that JSON.",
+    "Nguồn: JSON sự cố có cấu trúc PHASE 3 do người dùng cung cấp",
+    `Mã sự cố: ${incident.incident_id}`,
+    `Thời điểm tạo: ${incident.metadata?.created_at ?? "Chưa xác định"}`,
+    "Tất cả nhận định trong slide được dẫn xuất từ JSON này.",
   ].join("\n"),
   "utf8",
 );
 await fs.writeFile(
   path.join(workspace, "slide-plan.txt"),
   [
-    "Mode: create",
-    "Audience: SOC and incident-response stakeholders",
-    "Canvas: 1280 x 720",
-    "Palette: navy #071C33 (dominant), slate #E6EDF5, cyan #2EC7D3, red #E25563",
-    "Fonts: Aptos Display for headings; Aptos for body and numeric roles",
-    "Slides: executive overview, attack sequence, ATT&CK mapping, response actions, optional graph.",
-    "All content objects remain editable; graph may be an embedded supporting image.",
+    "Chế độ: tạo mới",
+    "Đối tượng: SOC và các bên liên quan đến ứng phó sự cố",
+    "Kích thước: 1280 x 720",
+    "Bảng màu: navy #071C33, slate #E6EDF5, cyan #2EC7D3, red #E25563",
+    "Phông chữ: Aptos Display cho tiêu đề; Aptos cho nội dung và số liệu",
+    "Slide: tổng quan điều hành, chuỗi tấn công, ánh xạ ATT&CK, hành động ứng phó và sơ đồ tùy chọn.",
+    "Mọi đối tượng nội dung đều có thể chỉnh sửa; sơ đồ có thể được nhúng dưới dạng ảnh hỗ trợ.",
   ].join("\n"),
   "utf8",
 );
@@ -91,8 +91,73 @@ function severityColor(value) {
   }[value] ?? COLORS.muted;
 }
 
+function known(value) {
+  return !["", "unknown", "none", "null", "n/a"].includes(
+    String(value ?? "").trim().toLowerCase(),
+  );
+}
+
+const TACTIC_LABELS_VI = {
+  Reconnaissance: "Trinh sát",
+  "Resource Development": "Phát triển tài nguyên",
+  "Initial Access": "Truy cập ban đầu",
+  Execution: "Thực thi",
+  Persistence: "Duy trì truy cập",
+  "Privilege Escalation": "Leo thang đặc quyền",
+  "Defense Evasion": "Né tránh phòng thủ",
+  "Credential Access": "Truy cập thông tin xác thực",
+  Discovery: "Khám phá",
+  "Lateral Movement": "Di chuyển ngang",
+  Collection: "Thu thập",
+  "Command And Control": "Chỉ huy và kiểm soát",
+  "Command and Control": "Chỉ huy và kiểm soát",
+  Exfiltration: "Đưa dữ liệu ra ngoài",
+  Impact: "Tác động",
+  Unknown: "Chưa xác định",
+};
+
+function displayVi(container, field, fallback = "Chưa xác định") {
+  const aliases = {
+    incident_name: ["incident_name", "name"],
+    tactic: ["tactic", "mitre_tactic"],
+  }[field] ?? [field];
+  const localized = container?.display_vi;
+  if (localized && typeof localized === "object") {
+    for (const key of aliases) {
+      if (known(localized[key])) return String(localized[key]).trim();
+    }
+  }
+  const raw = known(container?.[field]) ? container[field] : fallback;
+  const text = String(raw ?? "").trim();
+  if (field === "tactic") return TACTIC_LABELS_VI[text] ?? (text || "Chưa xác định");
+  if (!known(text)) return "Chưa xác định";
+  if (text.toLowerCase() === "unknown action") return "Hành động chưa xác định";
+  return text;
+}
+
+function severityVi(value) {
+  return {
+    Critical: "Nghiêm trọng",
+    High: "Cao",
+    Medium: "Trung bình",
+    Low: "Thấp",
+    Unknown: "Chưa xác định",
+  }[value] ?? (known(value) ? String(value) : "Chưa xác định");
+}
+
+function displayEntities(group, singular) {
+  const localized = incident.display_vi?.entities?.[group];
+  if (Array.isArray(localized) && localized.length) return [...new Set(localized)].join(", ");
+  const fromSteps = incident.steps
+    .map((step) => step.display_vi?.[singular])
+    .filter(known);
+  if (fromSteps.length) return [...new Set(fromSteps)].join(", ");
+  const raw = incident.entities?.[group] ?? [];
+  return raw.filter(known).join(", ") || "Chưa xác định";
+}
+
 function short(value, max = 110) {
-  const text = String(value ?? "Unknown").replace(/\s+/g, " ").trim() || "Unknown";
+  const text = String(value ?? "Chưa xác định").replace(/\s+/g, " ").trim() || "Chưa xác định";
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
@@ -161,19 +226,19 @@ let pageNumber = 1;
   slide.background.fill = COLORS.navy;
   addText(
     slide,
-    "CYBERSECURITY INCIDENT REPORT",
+    "BÁO CÁO SỰ CỐ AN NINH MẠNG",
     { left: 72, top: 58, width: 680, height: 28 },
     { fontSize: 13, bold: true, color: COLORS.cyan },
   );
   addText(
     slide,
-    short(incident.incident_name, 92),
+    short(displayVi(incident, "incident_name", incident.incident_name), 92),
     { left: 72, top: 132, width: 760, height: 154 },
     { fontSize: 50, bold: true, color: COLORS.white, typeface: "Aptos Display" },
   );
   addText(
     slide,
-    short(incident.summary, 230),
+    short(displayVi(incident, "summary", incident.summary), 230),
     { left: 72, top: 302, width: 750, height: 108 },
     { fontSize: 21, color: "#BED0DF" },
   );
@@ -186,15 +251,15 @@ let pageNumber = 1;
   badge.shadow = "shadow-md";
   addText(
     slide,
-    incident.severity.toUpperCase(),
+    severityVi(incident.severity).toUpperCase(),
     { left: 956, top: 154, width: 210, height: 58 },
     { fontSize: 28, bold: true, color: COLORS.white, alignment: "center" },
   );
   const metrics = [
-    ["PIPELINE QUALITY", `${incident.confidence ?? 0}/100`],
-    ["ATTACK STEPS", String(incident.steps.length)],
+    ["CHẤT LƯỢNG PIPELINE", `${incident.confidence ?? 0}/100`],
+    ["BƯỚC TẤN CÔNG", String(incident.steps.length)],
     [
-      "ATT&CK MAPPED",
+      "ĐÃ ÁNH XẠ ATT&CK",
       String(
         incident.steps.filter(
           (step) =>
@@ -250,8 +315,8 @@ for (const [batchIndex, steps] of stepBatches.entries()) {
   slide.background.fill = COLORS.navy;
   addHeader(
     slide,
-    batchIndex === 0 ? "Attack sequence" : "Attack sequence — continued",
-    "PHASE 5 / FLOW",
+    batchIndex === 0 ? "Chuỗi tấn công" : "Chuỗi tấn công — tiếp theo",
+    "PHASE 5 / LUỒNG",
     pageNumber,
   );
   const cardWidth = 250;
@@ -272,31 +337,33 @@ for (const [batchIndex, steps] of stepBatches.entries()) {
     });
     addText(
       slide,
-      `STEP ${String(step.order).padStart(2, "0")}`,
+      `BƯỚC ${String(step.order).padStart(2, "0")}`,
       { left: left + 18, top: 198, width: 200, height: 22 },
       { fontSize: 11, bold: true, color: COLORS.cyan },
     );
     addText(
       slide,
-      short(step.action, 62),
+      short(displayVi(step, "action", step.action), 62),
       { left: left + 18, top: 236, width: 214, height: 92 },
       { fontSize: 23, bold: true, color: COLORS.white, typeface: "Aptos Display" },
     );
     addText(
       slide,
-      `${step.mitre?.technique_id ?? "Unknown"}\n${short(step.mitre?.tactic, 44)}`,
+      `${step.mitre?.technique_id ?? "Chưa xác định"}\n${short(displayVi(step, "tactic", step.mitre?.tactic), 44)}`,
       { left: left + 18, top: 340, width: 214, height: 62 },
       { fontSize: 16, bold: true, color: "#B7DCE4" },
     );
     addText(
       slide,
-      `Actor: ${short(step.actor, 30)}\nTarget: ${short(step.target, 30)}\nAsset: ${short(step.asset, 30)}`,
+      `Tác nhân: ${short(displayVi(step, "actor", step.actor), 30)}\n`
+      + `Mục tiêu: ${short(displayVi(step, "target", step.target), 30)}\n`
+      + `Tài sản: ${short(displayVi(step, "asset", step.asset), 30)}`,
       { left: left + 18, top: 426, width: 214, height: 100 },
       { fontSize: 14, color: "#BED0DF" },
     );
     addText(
       slide,
-      short(step.detection, 78),
+      short(displayVi(step, "detection", step.detection), 78),
       { left: left + 18, top: 536, width: 214, height: 42 },
       { fontSize: 11, color: COLORS.muted },
     );
@@ -322,7 +389,7 @@ for (const [batchIndex, steps] of mitreBatches.entries()) {
   slide.background.fill = COLORS.navy;
   addHeader(
     slide,
-    batchIndex === 0 ? "MITRE ATT&CK mapping" : "MITRE ATT&CK — continued",
+    batchIndex === 0 ? "Ánh xạ MITRE ATT&CK" : "MITRE ATT&CK — tiếp theo",
     "PHASE 4 / RAG",
     pageNumber,
   );
@@ -336,25 +403,25 @@ for (const [batchIndex, steps] of mitreBatches.entries()) {
     );
     addText(
       slide,
-      step.mitre?.technique_id ?? "Unknown",
+      step.mitre?.technique_id ?? "Chưa xác định",
       { left: 94, top: top + 17, width: 120, height: 38 },
       { fontSize: 18, bold: true, color: COLORS.cyan },
     );
     addText(
       slide,
-      short(step.action, 55),
+      short(displayVi(step, "action", step.action), 55),
       { left: 232, top: top + 15, width: 270, height: 45 },
       { fontSize: 18, bold: true, color: COLORS.white },
     );
     addText(
       slide,
-      short(step.mitre?.tactic, 42),
+      short(displayVi(step, "tactic", step.mitre?.tactic), 42),
       { left: 520, top: top + 15, width: 190, height: 45 },
       { fontSize: 15, color: "#B7DCE4" },
     );
     addText(
       slide,
-      short(step.detection, 86),
+      short(displayVi(step, "detection", step.detection), 86),
       { left: 726, top: top + 13, width: 456, height: 49 },
       { fontSize: 13, color: "#BED0DF" },
     );
@@ -366,14 +433,14 @@ for (const [batchIndex, steps] of mitreBatches.entries()) {
 {
   const slide = deck.slides.add();
   slide.background.fill = COLORS.navy;
-  addHeader(slide, "Response priorities", "INCIDENT RESPONSE", pageNumber);
-  const actors = (incident.entities?.actors ?? []).join(", ") || "Unknown";
-  const targets = (incident.entities?.targets ?? []).join(", ") || "Unknown";
-  const assets = (incident.entities?.assets ?? []).join(", ") || "Unknown";
+  addHeader(slide, "Ưu tiên ứng phó", "ỨNG PHÓ SỰ CỐ", pageNumber);
+  const actors = displayEntities("actors", "actor");
+  const targets = displayEntities("targets", "target");
+  const assets = displayEntities("assets", "asset");
   const entityCards = [
-    ["ACTORS", actors],
-    ["TARGETS", targets],
-    ["ASSETS", assets],
+    ["TÁC NHÂN", actors],
+    ["MỤC TIÊU", targets],
+    ["TÀI SẢN", assets],
   ];
   entityCards.forEach(([label, value], index) => {
     const left = 72 + index * 376;
@@ -427,7 +494,7 @@ for (const [batchIndex, steps] of mitreBatches.entries()) {
 if (payload.graph_image_base64 && payload.graph_image_content_type) {
   const slide = deck.slides.add();
   slide.background.fill = COLORS.navy;
-  addHeader(slide, "Attack diagram", "PHASE 5 / GRAPH", pageNumber);
+  addHeader(slide, "Sơ đồ tấn công", "PHASE 5 / SƠ ĐỒ", pageNumber);
   addCard(
     slide,
     { left: 72, top: 148, width: 1136, height: 490 },
@@ -438,7 +505,7 @@ if (payload.graph_image_base64 && payload.graph_image_content_type) {
   slide.images.add({
     blob: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
     contentType: payload.graph_image_content_type,
-    alt: `Attack diagram for ${incident.incident_name}`,
+    alt: `Sơ đồ tấn công cho ${displayVi(incident, "incident_name", incident.incident_name)}`,
     fit: "contain",
     position: { left: 96, top: 170, width: 1088, height: 446 },
   });
@@ -465,21 +532,21 @@ await writeBlob(
 );
 
 const qaLedger = [
-  "Visual QA",
+  "Kiểm tra trực quan",
   "",
-  `- Expected slide count: ${deck.slides.items.length}`,
-  `- Every final slide rendered: yes (${deck.slides.items.length})`,
-  "- Contact sheet or montage generated: yes",
-  "- Layout JSON generated: yes",
-  "- Native editable objects used: yes",
-  "- Full-slide bitmap used: no",
-  "- Manual 100% visual review: pending host/application review",
+  `- Số slide dự kiến: ${deck.slides.items.length}`,
+  `- Đã render toàn bộ slide: có (${deck.slides.items.length})`,
+  "- Đã tạo montage: có",
+  "- Đã tạo JSON bố cục: có",
+  "- Sử dụng đối tượng có thể chỉnh sửa: có",
+  "- Sử dụng ảnh bitmap toàn slide: không",
+  "- Kiểm tra trực quan thủ công 100%: đang chờ rà soát trên ứng dụng",
   "",
-  "Issue ledger",
-  "- No mechanical export error detected.",
+  "Nhật ký vấn đề",
+  "- Không phát hiện lỗi xuất file tự động.",
   "",
-  "Final decision",
-  "- Pass/fail: pending manual visual inspection of rendered PNGs.",
+  "Kết luận",
+  "- Đạt/không đạt: đang chờ kiểm tra thủ công các ảnh PNG đã render.",
 ].join("\n");
 await fs.writeFile(path.join(qaDir, "visual-qa.txt"), qaLedger, "utf8");
 

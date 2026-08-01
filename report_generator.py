@@ -25,6 +25,25 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 PPTX_SCRIPT = PROJECT_ROOT / "scripts" / "generate_report_pptx.mjs"
 DEFAULT_REPORT_DIR = PROJECT_ROOT / "output" / "reports"
 
+TACTIC_LABELS_VI = {
+    "Reconnaissance": "Trinh sát",
+    "Resource Development": "Phát triển tài nguyên",
+    "Initial Access": "Truy cập ban đầu",
+    "Execution": "Thực thi",
+    "Persistence": "Duy trì truy cập",
+    "Privilege Escalation": "Leo thang đặc quyền",
+    "Defense Evasion": "Né tránh phòng thủ",
+    "Credential Access": "Truy cập thông tin xác thực",
+    "Discovery": "Khám phá",
+    "Lateral Movement": "Di chuyển ngang",
+    "Collection": "Thu thập",
+    "Command And Control": "Chỉ huy và kiểm soát",
+    "Command and Control": "Chỉ huy và kiểm soát",
+    "Exfiltration": "Đưa dữ liệu ra ngoài",
+    "Impact": "Tác động",
+    "Unknown": "Chưa xác định",
+}
+
 
 class ReportGenerationError(RuntimeError):
     """Raised when a report runtime is missing or an exporter fails."""
@@ -61,7 +80,7 @@ def generate_pdf(
         )
     except ImportError as exc:  # pragma: no cover - dependency guard
         raise ReportGenerationError(
-            "PDF export requires reportlab. Install reportlab>=4."
+            "Xuất PDF yêu cầu reportlab. Hãy cài reportlab>=4."
         ) from exc
 
     font_regular, font_bold = _register_pdf_fonts()
@@ -160,19 +179,19 @@ def generate_pdf(
         rightMargin=inch,
         topMargin=0.72 * inch,
         bottomMargin=0.58 * inch,
-        title=data["incident_name"],
+        title=_display_vi(data, "incident_name", data["incident_name"]),
         author="CyberVision",
-        subject="Cybersecurity incident analysis",
+        subject="Phân tích sự cố an ninh mạng",
     )
     story: list[Any] = [
-        para("CYBERSECURITY INCIDENT REPORT", title),
-        para(data["incident_name"], subtitle),
+        para("BÁO CÁO SỰ CỐ AN NINH MẠNG", title),
+        para(_display_vi(data, "incident_name", data["incident_name"]), subtitle),
     ]
     metadata = [
-        ("Incident ID", data["incident_id"]),
-        ("Severity", data["severity"]),
-        ("Created", _display_date(data)),
-        ("Analysis engine", _engine_label(data)),
+        ("Mã sự cố", data["incident_id"]),
+        ("Mức độ", _severity_vi(data["severity"])),
+        ("Thời điểm tạo", _display_date(data)),
+        ("Công cụ phân tích", _engine_label(data)),
     ]
     for label, value in metadata:
         story.append(
@@ -184,7 +203,7 @@ def generate_pdf(
     story.append(Spacer(1, 4))
 
     summary_table = Table(
-        [[para(data.get("summary") or "No executive summary was supplied.", body)]],
+        [[para(_display_vi(data, "summary", data.get("summary") or "Chưa có tóm tắt điều hành."), body)]],
         colWidths=[6.5 * inch],
     )
     summary_table.setStyle(
@@ -203,10 +222,10 @@ def generate_pdf(
 
     mapped_steps = [step for step in data["steps"] if _known(step["mitre"]["technique_id"])]
     metrics = [
-        ("Severity", data["severity"]),
-        ("Pipeline quality", f'{data.get("confidence", 0)} / 100'),
-        ("Attack steps", str(len(data["steps"]))),
-        ("ATT&CK mapped", f"{len(mapped_steps)} / {len(data['steps'])}"),
+        ("Mức độ", _severity_vi(data["severity"])),
+        ("Chất lượng pipeline", f'{data.get("confidence", 0)} / 100'),
+        ("Bước tấn công", str(len(data["steps"]))),
+        ("Đã ánh xạ ATT&CK", f"{len(mapped_steps)} / {len(data['steps'])}"),
     ]
     metric_cells = [
         [para(value, metric_value), para(label, metric_label)] for label, value in metrics
@@ -226,27 +245,27 @@ def generate_pdf(
             ]
         )
     )
-    story.extend([metric_table, para("Attack sequence", heading)])
+    story.extend([metric_table, para("Chuỗi tấn công", heading)])
 
-    step_headers = ["#", "Action", "Actor", "Target / Asset", "ATT&CK", "Detection"]
+    step_headers = ["#", "Hành động", "Tác nhân", "Mục tiêu / Tài sản", "ATT&CK", "Phát hiện"]
     step_rows = [[para(value, table_header) for value in step_headers]]
     for step in data["steps"]:
         mitre = (
             f'{_reportlab_text(step["mitre"]["technique_id"])}'
-            f'<br/>{_reportlab_text(step["mitre"]["tactic"])}'
+            f'<br/>{_reportlab_text(_display_vi(step, "tactic", step["mitre"]["tactic"]))}'
         )
         target = (
-            f'{_reportlab_text(step["target"])}'
-            f'<br/>{_reportlab_text(step["asset"])}'
+            f'{_reportlab_text(_display_vi(step, "target", step["target"]))}'
+            f'<br/>{_reportlab_text(_display_vi(step, "asset", step["asset"]))}'
         )
         step_rows.append(
             [
                 para(step["order"], small),
-                para(step["action"], small),
-                para(step["actor"], small),
+                para(_display_vi(step, "action", step["action"]), small),
+                para(_display_vi(step, "actor", step["actor"]), small),
                 para(target, small, markup=True),
                 para(mitre, small, markup=True),
-                para(step.get("detection"), small),
+                para(_display_vi(step, "detection", step.get("detection")), small),
             ]
         )
     step_table = Table(
@@ -259,7 +278,7 @@ def generate_pdf(
     story.append(step_table)
 
     if graph_bytes:
-        story.append(para("Attack diagram", heading))
+        story.append(para("Sơ đồ tấn công", heading))
         try:
             image = Image(io.BytesIO(graph_bytes))
             width, height = image.imageWidth, image.imageHeight
@@ -268,18 +287,18 @@ def generate_pdf(
             image.drawHeight = height * scale
             story.append(KeepTogether([image, Spacer(1, 4)]))
         except Exception:
-            story.append(para("The supplied graph image could not be embedded.", small))
+            story.append(para("Không thể nhúng hình ảnh sơ đồ được cung cấp.", small))
 
-    story.append(para("MITRE ATT&CK mapping", heading))
-    mitre_headers = ["Technique", "Tactic", "Detection", "Mitigation"]
+    story.append(para("Ánh xạ MITRE ATT&CK", heading))
+    mitre_headers = ["Kỹ thuật", "Chiến thuật", "Phát hiện", "Giảm thiểu"]
     mitre_rows = [[para(value, table_header) for value in mitre_headers]]
     for step in data["steps"]:
         mitre_rows.append(
             [
                 para(step["mitre"]["technique_id"], small),
-                para(step["mitre"]["tactic"], small),
-                para(step.get("detection"), small),
-                para(step.get("mitigation"), small),
+                para(_display_vi(step, "tactic", step["mitre"]["tactic"]), small),
+                para(_display_vi(step, "detection", step.get("detection")), small),
+                para(_display_vi(step, "mitigation", step.get("mitigation")), small),
             ]
         )
     mitre_table = Table(
@@ -291,36 +310,35 @@ def generate_pdf(
     mitre_table.setStyle(_pdf_table_style(palette, data["severity"]))
     story.append(mitre_table)
 
-    story.append(para("Entities and affected scope", heading))
-    entities = data["entities"]
+    story.append(para("Thực thể và phạm vi ảnh hưởng", heading))
     story.extend(
         [
             para(
-                f"<b>Actors:</b> {_reportlab_text(_join(entities.get('actors')))}",
+                f"<b>Tác nhân:</b> {_reportlab_text(_join(_display_entities(data, 'actors')))}",
                 markup=True,
             ),
             para(
-                f"<b>Targets:</b> {_reportlab_text(_join(entities.get('targets')))}",
+                f"<b>Mục tiêu:</b> {_reportlab_text(_join(_display_entities(data, 'targets')))}",
                 markup=True,
             ),
             para(
-                f"<b>Assets:</b> {_reportlab_text(_join(entities.get('assets')))}",
+                f"<b>Tài sản:</b> {_reportlab_text(_join(_display_entities(data, 'assets')))}",
                 markup=True,
             ),
         ]
     )
 
-    story.extend([PageBreak(), para("Recommended response", heading)])
-    action_headers = ["Priority", "Response action", "Suggested owner", "Status"]
+    story.extend([PageBreak(), para("Ứng phó được khuyến nghị", heading)])
+    action_headers = ["Ưu tiên", "Hành động ứng phó", "Đơn vị phụ trách", "Trạng thái"]
     action_rows = [[para(value, table_header) for value in action_headers]]
-    response_owners = ("IR Lead", "IAM / Endpoint", "Threat Hunting")
+    response_owners = ("Trưởng nhóm IR", "IAM / Endpoint", "Săn tìm mối đe dọa")
     for index, action in enumerate(actions, 1):
         action_rows.append(
             [
                 para("P1" if index <= 2 else "P2", small),
                 para(action, small),
                 para(response_owners[min(index - 1, len(response_owners) - 1)], small),
-                para("Open", small),
+                para("Chưa xử lý", small),
             ]
         )
     action_table = Table(
@@ -337,9 +355,9 @@ def generate_pdf(
     orchestration = metadata_block.get("orchestration") or {}
     knowledge = metadata_block.get("knowledge") or {}
     provenance_rows = [
-        ["Analysis engine", _engine_label(data)],
+        ["Công cụ phân tích", _engine_label(data)],
         [
-            "Orchestration",
+            "Điều phối pipeline",
             str(orchestration.get("engine") or "native")
             + (
                 f" · {orchestration.get('duration_ms')} ms"
@@ -348,7 +366,7 @@ def generate_pdf(
             ),
         ],
         [
-            "Semantic RAG",
+            "RAG ngữ nghĩa",
             " · ".join(
                 filter(
                     None,
@@ -356,26 +374,26 @@ def generate_pdf(
                         str(rag_metadata.get("backend") or ""),
                         str(rag_metadata.get("embedding") or ""),
                         (
-                            f"{rag_metadata.get('chunks')} chunks"
+                            f"{rag_metadata.get('chunks')} phân đoạn"
                             if rag_metadata.get("chunks") is not None
                             else ""
                         ),
                     ),
                 )
             )
-            or "Not available",
+            or "Chưa có",
         ],
         [
-            "Knowledge evidence",
+            "Bằng chứng kho tri thức",
             (
-                f"{knowledge.get('matches', 0)} matches · "
+                f"{knowledge.get('matches', 0)} kết quả · "
                 + ", ".join(knowledge.get("sources") or [])
             )
             if knowledge
-            else "No multi-source evidence attached",
+            else "Chưa có bằng chứng đa nguồn",
         ],
         [
-            "Confidence method",
+            "Phương pháp tính độ tin cậy",
             str(
                 (data.get("confidence_breakdown") or {}).get(
                     "methodology", "weighted_structure_quality_v1"
@@ -383,7 +401,7 @@ def generate_pdf(
             ),
         ],
     ]
-    story.append(para("Analysis provenance", heading))
+    story.append(para("Nguồn gốc phân tích", heading))
     provenance_table = Table(
         [
             [para(label, table_header), para(value, small)]
@@ -414,14 +432,14 @@ def generate_pdf(
         canvas.line(inch, height - 0.48 * inch, width - inch, height - 0.48 * inch)
         canvas.setFont(font_bold, 7.5)
         canvas.setFillColor(palette["muted"])
-        canvas.drawString(inch, height - 0.39 * inch, "CYBERVISION | INCIDENT REPORT")
+        canvas.drawString(inch, height - 0.39 * inch, "CYBERVISION | BÁO CÁO SỰ CỐ")
         canvas.setFont(font_regular, 7.5)
-        canvas.drawRightString(width - inch, 0.38 * inch, f"Page {doc.page}")
+        canvas.drawRightString(width - inch, 0.38 * inch, f"Trang {doc.page}")
         canvas.restoreState()
 
     document.build(story, onFirstPage=page_chrome, onLaterPages=page_chrome)
     if not destination.exists() or destination.stat().st_size < 100:
-        raise ReportGenerationError("ReportLab did not create a valid PDF.")
+        raise ReportGenerationError("ReportLab không tạo được file PDF hợp lệ.")
     return destination
 
 
@@ -451,7 +469,7 @@ def generate_docx(
         from docx.shared import Inches, Pt, RGBColor
     except ImportError as exc:  # pragma: no cover - dependency guard
         raise ReportGenerationError(
-            "DOCX export requires python-docx>=1.1."
+            "Xuất DOCX yêu cầu python-docx>=1.1."
         ) from exc
 
     document = Document()
@@ -470,16 +488,16 @@ def generate_docx(
     _configure_docx_header_footer(document, data)
 
     title_paragraph = document.add_paragraph(style="CVI Title")
-    title_paragraph.add_run("CYBERSECURITY INCIDENT REPORT")
+    title_paragraph.add_run("BÁO CÁO SỰ CỐ AN NINH MẠNG")
     subtitle_paragraph = document.add_paragraph(style="CVI Subtitle")
-    subtitle_paragraph.add_run(data["incident_name"])
+    subtitle_paragraph.add_run(_display_vi(data, "incident_name", data["incident_name"]))
 
     metadata = [
-        ("To", "SOC / Incident Response Team"),
-        ("From", "CyberVision Analysis Pipeline"),
-        ("Date", _display_date(data)),
-        ("Incident ID", data["incident_id"]),
-        ("Status", f'{data["severity"]} severity - review and response required'),
+        ("Kính gửi", "Đội SOC / Ứng phó sự cố"),
+        ("Nguồn", "Pipeline phân tích CyberVision"),
+        ("Ngày tạo", _display_date(data)),
+        ("Mã sự cố", data["incident_id"]),
+        ("Trạng thái", f'Mức độ {_severity_vi(data["severity"])} - cần rà soát và ứng phó'),
     ]
     for index, (label, value) in enumerate(metadata):
         paragraph = document.add_paragraph(style="CVI Metadata")
@@ -489,20 +507,23 @@ def generate_docx(
         if index == len(metadata) - 1:
             _set_paragraph_bottom_border(paragraph, color="0B2545", size=12, space=7)
 
-    document.add_heading("Executive summary", level=1)
+    document.add_heading("Tóm tắt điều hành", level=1)
     summary_table = document.add_table(rows=1, cols=1)
     summary_table.style = "Table Grid"
     _set_table_geometry(summary_table, [9360])
     _shade_cell(summary_table.cell(0, 0), "F4F6F9")
-    _set_cell_text(summary_table.cell(0, 0), data.get("summary") or "No summary supplied.")
+    _set_cell_text(
+        summary_table.cell(0, 0),
+        _display_vi(data, "summary", data.get("summary") or "Chưa có nội dung tóm tắt."),
+    )
 
     mapped_steps = [step for step in data["steps"] if _known(step["mitre"]["technique_id"])]
-    document.add_heading("Analysis snapshot", level=1)
+    document.add_heading("Tổng quan phân tích", level=1)
     metrics = [
-        ("Severity", data["severity"]),
-        ("Pipeline quality", f'{data.get("confidence", 0)} / 100'),
-        ("Attack steps", str(len(data["steps"]))),
-        ("ATT&CK mapped", f"{len(mapped_steps)} / {len(data['steps'])}"),
+        ("Mức độ", _severity_vi(data["severity"])),
+        ("Chất lượng pipeline", f'{data.get("confidence", 0)} / 100'),
+        ("Bước tấn công", str(len(data["steps"]))),
+        ("Đã ánh xạ ATT&CK", f"{len(mapped_steps)} / {len(data['steps'])}"),
     ]
     metric_table = document.add_table(rows=2, cols=4)
     metric_table.style = "Table Grid"
@@ -512,9 +533,9 @@ def generate_docx(
         _set_cell_text(metric_table.cell(1, column), label, center=True, muted=True)
         _shade_cell(metric_table.cell(1, column), "F2F4F7")
 
-    document.add_heading("Attack sequence", level=1)
+    document.add_heading("Chuỗi tấn công", level=1)
     step_widths = [520, 2150, 1320, 1500, 1660, 2210]
-    step_headers = ["#", "Action", "Actor", "Target / Asset", "ATT&CK", "Detection"]
+    step_headers = ["#", "Hành động", "Tác nhân", "Mục tiêu / Tài sản", "ATT&CK", "Phát hiện"]
     step_table = document.add_table(rows=1, cols=len(step_headers))
     step_table.style = "Table Grid"
     _set_table_geometry(step_table, step_widths)
@@ -526,11 +547,13 @@ def generate_docx(
         cells = step_table.add_row().cells
         values = [
             step["order"],
-            step["action"],
-            step["actor"],
-            f'{step["target"]}\n{step["asset"]}',
-            f'{step["mitre"]["technique_id"]}\n{step["mitre"]["tactic"]}',
-            step.get("detection"),
+            _display_vi(step, "action", step["action"]),
+            _display_vi(step, "actor", step["actor"]),
+            f'{_display_vi(step, "target", step["target"])}\n'
+            f'{_display_vi(step, "asset", step["asset"])}',
+            f'{step["mitre"]["technique_id"]}\n'
+            f'{_display_vi(step, "tactic", step["mitre"]["tactic"])}',
+            _display_vi(step, "detection", step.get("detection")),
         ]
         for index, value in enumerate(values):
             _set_cell_text(cells[index], value, center=index == 0)
@@ -538,17 +561,17 @@ def generate_docx(
         _apply_row_widths(cells, step_widths)
 
     if graph_bytes:
-        document.add_heading("Attack diagram", level=1)
+        document.add_heading("Sơ đồ tấn công", level=1)
         stream = io.BytesIO(graph_bytes)
         graph_paragraph = document.add_paragraph()
         graph_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         graph_paragraph.add_run().add_picture(stream, width=Inches(6.35))
-        caption = document.add_paragraph("Figure 1. Generated attack flow", style="Caption")
+        caption = document.add_paragraph("Hình 1. Luồng tấn công được tạo tự động", style="Caption")
         caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    document.add_heading("MITRE ATT&CK mapping", level=1)
+    document.add_heading("Ánh xạ MITRE ATT&CK", level=1)
     mitre_widths = [1200, 1650, 2960, 3550]
-    mitre_headers = ["Technique", "Tactic", "Detection", "Mitigation"]
+    mitre_headers = ["Kỹ thuật", "Chiến thuật", "Phát hiện", "Giảm thiểu"]
     mitre_table = document.add_table(rows=1, cols=4)
     mitre_table.style = "Table Grid"
     _set_table_geometry(mitre_table, mitre_widths)
@@ -560,32 +583,31 @@ def generate_docx(
         cells = mitre_table.add_row().cells
         values = [
             step["mitre"]["technique_id"],
-            step["mitre"]["tactic"],
-            step.get("detection"),
-            step.get("mitigation"),
+            _display_vi(step, "tactic", step["mitre"]["tactic"]),
+            _display_vi(step, "detection", step.get("detection")),
+            _display_vi(step, "mitigation", step.get("mitigation")),
         ]
         for index, value in enumerate(values):
             _set_cell_text(cells[index], value)
             cells[index].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         _apply_row_widths(cells, mitre_widths)
 
-    document.add_heading("Entities and affected scope", level=1)
-    entities = data["entities"]
+    document.add_heading("Thực thể và phạm vi ảnh hưởng", level=1)
     for label, values in (
-        ("Actors", entities.get("actors")),
-        ("Targets", entities.get("targets")),
-        ("Assets", entities.get("assets")),
+        ("Tác nhân", _display_entities(data, "actors")),
+        ("Mục tiêu", _display_entities(data, "targets")),
+        ("Tài sản", _display_entities(data, "assets")),
     ):
         paragraph = document.add_paragraph()
         paragraph.add_run(f"{label}: ").bold = True
         paragraph.add_run(_join(values))
 
-    document.add_heading("Recommended response", level=1)
+    document.add_heading("Ứng phó được khuyến nghị", level=1)
     response_table = document.add_table(rows=1, cols=2)
     response_table.style = "Table Grid"
     response_widths = [1400, 7960]
     _set_table_geometry(response_table, response_widths)
-    for index, header in enumerate(("Priority", "Action")):
+    for index, header in enumerate(("Ưu tiên", "Hành động")):
         _set_cell_text(response_table.cell(0, index), header, bold=True)
         _shade_cell(response_table.cell(0, index), "F2F4F7")
     _mark_repeat_header(response_table.rows[0])
@@ -595,23 +617,23 @@ def generate_docx(
         _set_cell_text(cells[1], action)
         _apply_row_widths(cells, response_widths)
 
-    document.add_heading("Methodology note", level=1)
+    document.add_heading("Ghi chú phương pháp", level=1)
     document.add_paragraph(
-        "The confidence value is an explainable pipeline-quality score derived from "
-        "structured-field completeness, model source reliability and ATT&CK RAG "
-        "coverage. It is not a probability that the incident occurred."
+        "Giá trị độ tin cậy là điểm chất lượng pipeline có thể giải thích, được tính từ "
+        "mức độ đầy đủ của các trường có cấu trúc, độ tin cậy của nguồn mô hình và độ "
+        "bao phủ ATT&CK RAG. Đây không phải là xác suất sự cố đã xảy ra."
     )
     properties = document.core_properties
-    properties.title = data["incident_name"]
-    properties.subject = "Cybersecurity incident analysis"
+    properties.title = _display_vi(data, "incident_name", data["incident_name"])
+    properties.subject = "Phân tích sự cố an ninh mạng"
     properties.author = "CyberVision"
-    properties.keywords = "cybersecurity, MITRE ATT&CK, incident response"
+    properties.keywords = "an ninh mạng, MITRE ATT&CK, ứng phó sự cố"
     properties.comments = (
-        "Generated with standard_business_brief and memo_masthead design contracts."
+        "Được tạo bằng các mẫu thiết kế standard_business_brief và memo_masthead."
     )
     document.save(destination)
     if not destination.exists() or destination.stat().st_size < 1000:
-        raise ReportGenerationError("python-docx did not create a valid DOCX.")
+        raise ReportGenerationError("python-docx không tạo được file DOCX hợp lệ.")
     return destination
 
 
@@ -637,16 +659,16 @@ def generate_pptx(
     modules = _find_artifact_tool_modules(artifact_tool_node_modules)
     if node is None:
         raise ReportGenerationError(
-            "PPTX export requires Node.js. Set CVI_NODE_BINARY to node/node.exe."
+            "Xuất PPTX yêu cầu Node.js. Hãy đặt CVI_NODE_BINARY tới node/node.exe."
         )
     if modules is None:
         raise ReportGenerationError(
-            "PPTX export requires @oai/artifact-tool. Set "
-            "ARTIFACT_TOOL_NODE_MODULES to the node_modules directory containing "
+            "Xuất PPTX yêu cầu @oai/artifact-tool. Hãy đặt "
+            "ARTIFACT_TOOL_NODE_MODULES tới thư mục node_modules chứa "
             "@oai/artifact-tool."
         )
     if not PPTX_SCRIPT.exists():
-        raise ReportGenerationError(f"PPTX generator script is missing: {PPTX_SCRIPT}")
+        raise ReportGenerationError(f"Không tìm thấy script tạo PPTX: {PPTX_SCRIPT}")
 
     graph_bytes = _read_binary(graph_image)
     payload = {
@@ -687,7 +709,7 @@ def generate_pptx(
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise ReportGenerationError(f"PPTX exporter could not run: {exc}") from exc
+        raise ReportGenerationError(f"Không thể chạy trình xuất PPTX: {exc}") from exc
     finally:
         try:
             payload_path.unlink(missing_ok=True)
@@ -702,10 +724,10 @@ def generate_pptx(
             for value in (completed.stderr, completed.stdout)
             if value and value.strip()
         ]
-        details = "\n".join(streams) or "Unknown artifact-tool error"
-        raise ReportGenerationError(f"@oai/artifact-tool PPTX export failed: {details}")
+        details = "\n".join(streams) or "Lỗi artifact-tool chưa xác định"
+        raise ReportGenerationError(f"@oai/artifact-tool xuất PPTX thất bại: {details}")
     if not destination.exists() or destination.stat().st_size < 1000:
-        raise ReportGenerationError("@oai/artifact-tool did not create a valid PPTX.")
+        raise ReportGenerationError("@oai/artifact-tool không tạo được file PPTX hợp lệ.")
     return destination
 
 
@@ -719,7 +741,7 @@ def generate_report(
     normalized = str(report_format).strip().lower().lstrip(".")
     exporters = {"pdf": generate_pdf, "docx": generate_docx, "pptx": generate_pptx}
     if normalized not in exporters:
-        raise ValueError("report_format must be one of: pdf, docx, pptx")
+        raise ValueError("report_format phải là một trong các giá trị: pdf, docx, pptx")
     return exporters[normalized](incident, output_path, **kwargs)
 
 
@@ -758,10 +780,10 @@ def report_capabilities() -> dict[str, Any]:
 
 def _canonical_incident(value: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise ValueError("incident must be an object")
+        raise ValueError("incident phải là một đối tượng")
     candidate = value.get("structured_json", value)
     if not isinstance(candidate, dict):
-        raise ValueError("structured_json must be an object")
+        raise ValueError("structured_json phải là một đối tượng")
     return validate_structured_incident(candidate)
 
 
@@ -881,7 +903,7 @@ def _configure_docx_header_footer(document: Any, data: dict[str, Any]) -> None:
     paragraph = header.paragraphs[0]
     paragraph.text = ""
     paragraph.paragraph_format.space_after = Pt(0)
-    left = paragraph.add_run("CYBERVISION  |  INCIDENT REPORT")
+    left = paragraph.add_run("CYBERVISION  |  BÁO CÁO SỰ CỐ")
     left.bold = True
     _set_run_font(left, "Calibri", 8, "5E6C7B")
     paragraph.add_run("\t")
@@ -893,10 +915,10 @@ def _configure_docx_header_footer(document: Any, data: dict[str, Any]) -> None:
     footer_paragraph = footer.paragraphs[0]
     footer_paragraph.text = ""
     footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = footer_paragraph.add_run("Page ")
+    run = footer_paragraph.add_run("Trang ")
     _set_run_font(run, "Calibri", 8, "5E6C7B")
     _append_field(footer_paragraph, "PAGE")
-    footer_paragraph.add_run(" of ")
+    footer_paragraph.add_run(" / ")
     _append_field(footer_paragraph, "NUMPAGES")
 
 
@@ -946,7 +968,7 @@ def _set_table_geometry(
     from docx.oxml.ns import qn
 
     if sum(widths_dxa) != 9360:
-        raise ValueError("DOCX table widths must sum to 9360 DXA")
+        raise ValueError("Tổng chiều rộng các cột DOCX phải bằng 9360 DXA")
     table.autofit = False
     tbl_pr = table._tbl.tblPr
 
@@ -1022,7 +1044,7 @@ def _set_cell_text(
     paragraph.paragraph_format.space_before = Pt(0)
     paragraph.paragraph_format.space_after = Pt(0)
     paragraph.paragraph_format.line_spacing = 1.05
-    parts = str(value if value not in (None, "") else "Unknown").splitlines() or ["Unknown"]
+    parts = str(value if value not in (None, "") else "Chưa xác định").splitlines() or ["Chưa xác định"]
     for index, part in enumerate(parts):
         if index:
             paragraph.add_run().add_break()
@@ -1195,29 +1217,36 @@ def _recommendations(
         unique = [_clean_text(item) for item in supplied]
         return list(dict.fromkeys(item for item in unique if item))[:8]
 
+    display = data.get("display_vi") if isinstance(data.get("display_vi"), dict) else {}
+    localized_actions = display.get("recommendations")
+    if isinstance(localized_actions, list) and localized_actions:
+        unique = [_clean_text(item) for item in localized_actions]
+        return list(dict.fromkeys(item for item in unique if item))[:8]
+
     actions: list[str] = [
-        "Isolate affected endpoints and suspend compromised accounts while preserving forensic evidence.",
-        "Block validated indicators across email, DNS, proxy, EDR and firewall controls.",
+        "Cô lập các endpoint bị ảnh hưởng và tạm khóa tài khoản bị xâm nhập, đồng thời bảo toàn chứng cứ số.",
+        "Chặn các chỉ dấu đã xác thực trên email, DNS, proxy, EDR và firewall.",
     ]
     tactics = {step["mitre"]["tactic"] for step in data["steps"]}
     if "Credential Access" in tactics:
         actions.append(
-            "Revoke active sessions, rotate exposed credentials and enforce phishing-resistant MFA."
+            "Thu hồi các phiên đang hoạt động, thay đổi thông tin xác thực bị lộ và áp dụng MFA chống phishing."
         )
     if "Command and Control" in tactics or "Command and Control" in {
         value.title() for value in tactics
     }:
         actions.append(
-            "Hunt for related command-and-control traffic and quarantine hosts with matching telemetry."
+            "Săn tìm lưu lượng chỉ huy và kiểm soát liên quan, đồng thời cách ly các host có telemetry trùng khớp."
         )
     detections = [
-        _clean_text(step.get("detection"))
+        _clean_text(_display_vi(step, "detection", step.get("detection")))
         for step in data["steps"]
-        if _known(step.get("detection"))
+        if _known(_display_vi(step, "detection", step.get("detection")))
     ]
     if detections:
         actions.append(
-            "Operationalize the mapped detections: " + "; ".join(dict.fromkeys(detections))[:650]
+            "Triển khai các biện pháp phát hiện đã ánh xạ: "
+            + "; ".join(dict.fromkeys(detections))[:650]
         )
     technique_ids = [
         step["mitre"]["technique_id"]
@@ -1226,7 +1255,7 @@ def _recommendations(
     ]
     if technique_ids:
         actions.append(
-            "Run environment-wide threat hunting for ATT&CK techniques "
+            "Thực hiện săn tìm mối đe dọa trên toàn môi trường đối với các kỹ thuật ATT&CK "
             + ", ".join(dict.fromkeys(technique_ids))
             + "."
         )
@@ -1265,17 +1294,86 @@ def _display_date(data: dict[str, Any]) -> str:
     if raw:
         try:
             parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-            return parsed.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            return parsed.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
         except ValueError:
             return str(raw)
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
 
 
 def _engine_label(data: dict[str, Any]) -> str:
     metadata = data.get("metadata", {})
-    model = _clean_text(metadata.get("model")) or "Unknown"
-    provider = _clean_text(metadata.get("provider")) or "Unknown"
+    model = _clean_text(metadata.get("model")) or "Chưa xác định"
+    provider = _clean_text(metadata.get("provider")) or "Chưa xác định"
     return f"{model} / {provider}"
+
+
+def _severity_vi(severity: Any) -> str:
+    return {
+        "Critical": "Nghiêm trọng",
+        "High": "Cao",
+        "Medium": "Trung bình",
+        "Low": "Thấp",
+        "Unknown": "Chưa xác định",
+    }.get(str(severity), _clean_text(severity) or "Chưa xác định")
+
+
+def _display_vi(
+    container: dict[str, Any],
+    field: str,
+    fallback: Any = None,
+) -> Any:
+    """Prefer localized presentation data while retaining canonical raw data."""
+    localized = container.get("display_vi") if isinstance(container, dict) else None
+    aliases = {
+        "incident_name": ("incident_name", "name"),
+        "tactic": ("tactic", "mitre_tactic"),
+    }.get(field, (field,))
+    if isinstance(localized, dict):
+        for key in aliases:
+            value = localized.get(key)
+            if isinstance(value, (list, dict)):
+                if value:
+                    return value
+            elif _known(value):
+                return _clean_text(value)
+    if isinstance(container, dict) and _known(container.get(field)):
+        return _fallback_vi(container[field], field)
+    if isinstance(fallback, (list, dict)):
+        return fallback or "Chưa xác định"
+    return _fallback_vi(fallback, field)
+
+
+def _fallback_vi(value: Any, field: str) -> str:
+    text = _clean_text(value)
+    if field == "tactic":
+        return TACTIC_LABELS_VI.get(text, text or "Chưa xác định")
+    if text.lower() in {"", "unknown", "none", "null", "n/a"}:
+        return "Chưa xác định"
+    if text.lower() == "unknown action":
+        return "Hành động chưa xác định"
+    return text
+
+
+def _display_entities(data: dict[str, Any], group: str) -> list[str]:
+    display = data.get("display_vi") if isinstance(data.get("display_vi"), dict) else {}
+    localized_entities = display.get("entities")
+    if isinstance(localized_entities, dict):
+        values = localized_entities.get(group)
+        if isinstance(values, list) and values:
+            return list(dict.fromkeys(_clean_text(value) for value in values if _known(value)))
+
+    singular = {"actors": "actor", "targets": "target", "assets": "asset"}.get(group)
+    values: list[str] = []
+    if singular:
+        for step in data.get("steps", []):
+            localized = step.get("display_vi") if isinstance(step, dict) else None
+            value = localized.get(singular) if isinstance(localized, dict) else None
+            if _known(value):
+                values.append(_clean_text(value))
+    if values:
+        return list(dict.fromkeys(values))
+    raw = (data.get("entities") or {}).get(group) or []
+    return list(dict.fromkeys(_clean_text(value) for value in raw if _known(value)))
 
 
 def _severity_color(severity: str) -> str:
@@ -1291,16 +1389,16 @@ def _severity_color(severity: str) -> str:
 def _reportlab_text(value: Any) -> str:
     from xml.sax.saxutils import escape
 
-    text = _clean_text(value) or "Unknown"
+    text = _clean_text(value) or "Chưa xác định"
     return escape(text).replace("\n", "<br/>")
 
 
 def _join(values: Any) -> str:
     if not values:
-        return "Unknown"
+        return "Chưa xác định"
     if isinstance(values, str):
         return values
-    return ", ".join(str(value) for value in values if _known(value)) or "Unknown"
+    return ", ".join(str(value) for value in values if _known(value)) or "Chưa xác định"
 
 
 def _known(value: Any) -> bool:

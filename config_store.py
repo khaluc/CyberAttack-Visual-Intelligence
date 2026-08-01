@@ -52,6 +52,7 @@ def preview_config(data):
         temperature=max(0, min(2, float(data.get("temperature", current.temperature)))),
         timeout=max(5, min(300, int(data.get("timeout", current.timeout)))),
         rag_enabled=bool(data.get("rag_enabled", current.rag_enabled)),
+        localize_rag=bool(data.get("localize_rag", current.localize_rag)),
         system_prompt=str(data.get("system_prompt", current.system_prompt)),
         azure_api_version=str(data.get("azure_api_version", current.azure_api_version)),
     )
@@ -71,6 +72,7 @@ def _write_env(config):
         "LLM_API_KEY": config.api_key, "LLM_BASE_URL": config.base_url,
         "LLM_MODEL": config.model, "LLM_TEMPERATURE": config.temperature,
         "LLM_TIMEOUT": config.timeout, "RAG_ENABLED": str(config.rag_enabled).lower(),
+        "RAG_LOCALIZATION_ENABLED": str(config.localize_rag).lower(),
         "LLM_SYSTEM_PROMPT": config.system_prompt,
         "AZURE_OPENAI_API_VERSION": config.azure_api_version,
     }

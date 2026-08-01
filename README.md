@@ -104,6 +104,8 @@ Demo tập trung vào bốn giao diện chính:
 - Vector search bằng ChromaDB, Qdrant hoặc FAISS.
 - Ánh xạ MITRE ATT&CK và trả về technique, description, detection, mitigation,
   procedure cùng cosine similarity.
+- Giữ dữ liệu ATT&CK gốc bằng tiếng Anh cho embedding/audit và sinh song song
+  `display_vi` cho giao diện, sơ đồ và báo cáo tiếng Việt.
 - Truy xuất bằng chứng đa nguồn từ Sigma, YARA, Threat Intelligence, NIST/CIS,
   Playbook và Enterprise Assets.
 - Điều phối PHASE 2–5 bằng LangChain, LlamaIndex Workflows hoặc native runner.
@@ -121,19 +123,20 @@ Demo tập trung vào bốn giao diện chính:
 flowchart LR
     A["Text / Email / Word / PDF<br/>Log / Syslog / Firewall / EVTX"]
     B["PHASE 1<br/>Parser & UTF-8"]
-    C["PHASE 2<br/>GLM-5.2 Vietnamese Understanding"]
-    D["PHASE 3<br/>Canonical Structured JSON"]
-    E["PHASE 4<br/>MITRE ATT&CK Semantic RAG"]
-    F["PHASE 5<br/>Graph Generation"]
-    G["Flask UI<br/>Dashboard · Diagram · Timeline"]
-    H["Server Reports<br/>PDF · DOCX · PPTX"]
+    C["PHASE 2<br/>GLM-5.2 hiểu tiếng Việt"]
+    D["PHASE 3<br/>JSON có cấu trúc chuẩn hóa"]
+    E["PHASE 4<br/>MITRE ATT&CK RAG ngữ nghĩa"]
+    L["Lớp hiển thị tiếng Việt<br/>display_vi · giữ raw English"]
+    F["PHASE 5<br/>Tạo đồ thị"]
+    G["Giao diện Flask<br/>Dashboard · Sơ đồ · Dòng thời gian"]
+    H["Báo cáo phía server<br/>PDF · DOCX · PPTX"]
     K["Knowledge Base<br/>MITRE · Sigma · YARA · TI<br/>NIST/CIS · Playbook · Assets"]
     M["Embedding<br/>BGE-M3 / E5 / API"]
     V["Vector DB<br/>Chroma / Qdrant / FAISS"]
 
-    A --> B --> C --> D --> E --> F
+    A --> B --> C --> D --> E --> L --> F
     F --> G
-    D --> H
+    L --> H
     K --> E
     M --> V --> E
     E --> D
@@ -157,6 +160,8 @@ MITRE ATT&CK RAG xác minh từng bước
         ↓
 Knowledge Base bổ sung bằng chứng đa nguồn
         ↓
+Lớp display_vi Việt hóa nội dung hiển thị, giữ nguyên dữ liệu gốc tiếng Anh
+        ↓
 Graphviz / Mermaid / NetworkX
         ↓
 Operations Dashboard, Sơ đồ tổng hợp, Timeline và Báo cáo
@@ -178,6 +183,8 @@ Technique, Description, Detection, Mitigation, Procedure
 Sigma / YARA / Threat Intelligence / NIST-CIS / Playbook / Assets
         ↓
 Evidence có source, origin và metadata cho từng attack step
+        ↓
+Batch localization bằng GLM-5.2 → display_vi cho UI và báo cáo
 ```
 
 ---
@@ -206,18 +213,22 @@ các trường:
 [
   {
     "step": 1,
-    "actor": "Attacker",
-    "action": "Execute PowerShell",
-    "target": "Web server",
-    "asset": "Production server",
+    "actor": "Kẻ tấn công",
+    "action": "Thực thi PowerShell để tải ransomware",
+    "target": "Máy chủ web",
+    "asset": "Máy chủ sản xuất",
     "severity": "High",
-    "mitre_tactic": "Execution"
+    "mitre_tactic": "Execution",
+    "technique_id": "T1059.001",
+    "retrieval_query_en": "execute PowerShell to download ransomware"
   }
 ]
 ```
 
 Tactic không đủ bằng chứng được đặt thành `Unknown`. PHASE 2 không tự coi một
-ATT&CK technique chưa được RAG xác minh là kết quả cuối.
+ATT&CK technique chưa được RAG xác minh là kết quả cuối. Các trường hiển thị
+được viết bằng tiếng Việt; tactic, severity enum, technique ID và truy vấn
+retrieval vẫn giữ dạng machine-readable ổn định.
 
 ### PHASE 3 — Structured JSON backbone
 
@@ -230,6 +241,10 @@ ATT&CK technique chưa được RAG xác minh là kết quả cuối.
   "incident_name": "Ransomware incident",
   "severity": "Critical",
   "confidence": 87,
+  "display_vi": {
+    "incident_name": "Sự cố ransomware qua PowerShell",
+    "summary": "Kẻ tấn công sử dụng PowerShell để triển khai ransomware."
+  },
   "entities": {},
   "steps": [],
   "attack_summary": {},
@@ -253,6 +268,12 @@ vấn semantic độc lập và lưu:
 - Detection, mitigation và procedure.
 - Bằng chứng Knowledge Base liên quan.
 
+Kho ATT&CK và kết quả semantic gốc không bị dịch trước khi embedding. Sau khi
+RAG chọn Top-K, pipeline gọi GLM-5.2 một lần theo batch để tạo `display_vi` cho
+technique name, description, detection, mitigation, procedure và bằng chứng đa
+nguồn. Nếu bước dịch lỗi, engine deterministic vẫn sinh diễn giải tiếng Việt;
+ATT&CK ID, cosine score, thứ tự candidate và raw English luôn được bảo toàn.
+
 RAG candidate là phương án ánh xạ, không tự trở thành bước tấn công mới.
 
 ### PHASE 5 — Graph Generation
@@ -275,6 +296,7 @@ Canonical graph gồm node, edge và metadata, sau đó được chuyển thành
 | Embedding mặc định | `BAAI/bge-m3`, vector được normalized |
 | Vector backend | ChromaDB, Qdrant và FAISS |
 | ATT&CK source | Enterprise ATT&CK STIX |
+| Ngôn ngữ đầu ra | `display_vi` qua GLM-5.2 + deterministic fallback |
 | Knowledge Base | SQLite + FTS5, dữ liệu đa nguồn thật |
 | Orchestration | LangChain, LlamaIndex hoặc native |
 | Graph renderer | Graphviz, Mermaid và NetworkX |
@@ -476,6 +498,7 @@ LLM_MODEL="glm-5.2"
 LLM_TEMPERATURE="0.1"
 LLM_TIMEOUT="60"
 RAG_ENABLED="true"
+RAG_LOCALIZATION_ENABLED="true"
 ```
 
 Không commit `.env` hoặc API key lên GitHub.
@@ -544,6 +567,7 @@ EMBEDDING_MODEL="BAAI/bge-m3"
 EMBEDDING_BATCH_SIZE="8"
 EMBEDDING_MAX_SEQ_LENGTH="512"
 RAG_TOP_K="5"
+RAG_LOCALIZATION_ENABLED="true"
 
 PIPELINE_ORCHESTRATOR="langchain"
 ```

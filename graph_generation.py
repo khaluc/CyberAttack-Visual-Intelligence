@@ -35,6 +35,25 @@ TACTIC_FILLS = {
     "Impact": "#FFE4E6", "Unknown": "#E2E8F0",
 }
 
+TACTIC_LABELS_VI = {
+    "Reconnaissance": "Trinh sát",
+    "Resource Development": "Phát triển tài nguyên",
+    "Initial Access": "Truy cập ban đầu",
+    "Execution": "Thực thi",
+    "Persistence": "Duy trì truy cập",
+    "Privilege Escalation": "Leo thang đặc quyền",
+    "Defense Evasion": "Né tránh phòng thủ",
+    "Credential Access": "Truy cập thông tin xác thực",
+    "Discovery": "Khám phá",
+    "Lateral Movement": "Di chuyển ngang",
+    "Collection": "Thu thập",
+    "Command And Control": "Chỉ huy và kiểm soát",
+    "Command and Control": "Chỉ huy và kiểm soát",
+    "Exfiltration": "Đưa dữ liệu ra ngoài",
+    "Impact": "Tác động",
+    "Unknown": "Chưa xác định",
+}
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
@@ -48,6 +67,7 @@ class GraphNode:
     asset: str
     severity: str
     tactic: str
+    display_tactic: str
     technique_id: str
     color: str
 
@@ -67,9 +87,13 @@ def build_graph_model(structured):
     for step in data["steps"]:
         tactic = step["mitre"]["tactic"]
         nodes.append(GraphNode(
-            id=f"step_{step['order']}", order=step["order"], label=step["action"],
-            actor=step["actor"], target=step["target"], asset=step["asset"],
+            id=f"step_{step['order']}", order=step["order"],
+            label=_display_vi(step, "action", step["action"]),
+            actor=_display_vi(step, "actor", step["actor"]),
+            target=_display_vi(step, "target", step["target"]),
+            asset=_display_vi(step, "asset", step["asset"]),
             severity=step["severity"], tactic=tactic,
+            display_tactic=_display_vi(step, "tactic", tactic),
             technique_id=step["mitre"]["technique_id"],
             color=TACTIC_COLORS.get(tactic, TACTIC_COLORS["Unknown"]),
         ))
@@ -82,7 +106,8 @@ def build_graph_model(structured):
         ))
     return {
         "directed": True, "multigraph": False,
-        "incident_id": data["incident_id"], "incident_name": data["incident_name"],
+        "incident_id": data["incident_id"],
+        "incident_name": _display_vi(data, "incident_name", data["incident_name"]),
         "nodes": [asdict(node) for node in nodes], "edges": [asdict(edge) for edge in edges],
     }
 
@@ -96,8 +121,8 @@ def to_dot(graph):
     ]
     for node in graph["nodes"]:
         label = (
-            f'{node["order"]:02d}  {node["label"]}\n'
-            f'{node["technique_id"]} · {node["tactic"]}'
+            f'Bước {node["order"]:02d}  {node["label"]}\n'
+            f'{node["technique_id"]} · {node["display_tactic"]}'
         )
         fill = TACTIC_FILLS.get(node["tactic"], TACTIC_FILLS["Unknown"])
         lines.append(
@@ -113,7 +138,10 @@ def to_dot(graph):
 def to_mermaid(graph):
     lines = ["flowchart LR"]
     for node in graph["nodes"]:
-        label = _mermaid(f'{node["order"]:02d} · {node["label"]}<br/>{node["technique_id"]} · {node["tactic"]}')
+        label = _mermaid(
+            f'Bước {node["order"]:02d} · {node["label"]}'
+            f'<br/>{node["technique_id"]} · {node["display_tactic"]}'
+        )
         lines.append(f'  {node["id"]}["{label}"]')
         fill = TACTIC_FILLS.get(node["tactic"], TACTIC_FILLS["Unknown"])
         lines.append(
@@ -408,7 +436,13 @@ def _networkx_artifact(graph, output_format):
     colors = [TACTIC_FILLS.get(node["tactic"], TACTIC_FILLS["Unknown"])
               for node in graph["nodes"]]
     borders = [node["color"] for node in graph["nodes"]]
-    labels = {node["id"]: f'{node["order"]:02d}\n{node["label"]}\n{node["technique_id"]}' for node in graph["nodes"]}
+    labels = {
+        node["id"]: (
+            f'Bước {node["order"]:02d}\n{node["label"]}\n'
+            f'{node["technique_id"]} · {node["display_tactic"]}'
+        )
+        for node in graph["nodes"]
+    }
     nx.draw_networkx_nodes(network, positions, node_color=colors, node_size=4100,
                            edgecolors=borders, linewidths=1.5, node_shape="s", ax=axis)
     nx.draw_networkx_edges(network, positions, edge_color="#64748B", width=1.8,
@@ -435,3 +469,21 @@ def _dot(value):
 
 def _mermaid(value):
     return str(value).replace('"', "#quot;").replace("[", "&#91;").replace("]", "&#93;")
+
+
+def _display_vi(container, field, fallback="Chưa xác định"):
+    """Return a localized presentation value without mutating canonical fields."""
+    localized = container.get("display_vi") if isinstance(container, dict) else None
+    value = localized.get(field) if isinstance(localized, dict) else None
+    if value not in (None, "") and str(value).strip().lower() not in {
+        "unknown", "none", "null", "n/a"
+    }:
+        return str(value).strip()
+    raw = str(fallback if fallback not in (None, "") else "Chưa xác định").strip()
+    if field == "tactic":
+        return TACTIC_LABELS_VI.get(raw, raw)
+    if raw.lower() in {"unknown", "none", "null", "n/a"}:
+        return "Chưa xác định"
+    if raw.lower() == "unknown action":
+        return "Hành động chưa xác định"
+    return raw

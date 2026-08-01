@@ -21,6 +21,10 @@ from knowledge_enrichment import enrich_with_knowledge
 from llm_service import understand_phase2
 from mitre_rag import get_rag
 from structured_attack import build_structured_incident, to_ui_result
+from vietnamese_localization import (
+    localize_phase2_steps,
+    localize_structured_incident,
+)
 
 
 Stage = Callable[[dict[str, Any]], dict[str, Any]]
@@ -84,9 +88,9 @@ class IncidentPipeline:
         # Keep the PHASE 2 tab faithful to the model/local extractor output.
         # PHASE 4 may fill an Unknown tactic or technique on the canonical
         # incident, but that enrichment must not rewrite what PHASE 2 showed.
-        result["phase2"] = [
-            dict(step) for step in context.get("phase2_steps", [])
-        ]
+        result["phase2"] = localize_phase2_steps(
+            context.get("phase2_steps", []), structured.get("steps", [])
+        )
         result["fallback"] = bool(context.get("fallback"))
         if context.get("llm_error"):
             result["llmError"] = context["llm_error"]
@@ -247,6 +251,19 @@ class IncidentPipeline:
             structured = enrich_with_knowledge(structured)
         except Exception as exc:
             structured["metadata"]["knowledge_error"] = str(exc)
+        try:
+            structured = localize_structured_incident(
+                structured, context.get("llm_config")
+            )
+        except Exception as exc:
+            # Localization is presentation-only and must never make PHASE 4 fail.
+            structured["metadata"]["localization"] = {
+                "language": "vi",
+                "source_language": "en",
+                "raw_preserved": True,
+                "status": "error",
+                "error": str(exc),
+            }
         context["structured"] = structured
         return context
 

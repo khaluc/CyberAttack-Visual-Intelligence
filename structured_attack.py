@@ -26,6 +26,7 @@ INCIDENT_JSON_SCHEMA = {
         "severity": {"enum": list(SEVERITIES)},
         "confidence": {"type": "integer", "minimum": 0, "maximum": 100},
         "summary": {"type": "string"},
+        "display_vi": {"type": "object"},
         "entities": {
             "type": "object",
             "required": ["actors", "targets", "assets"],
@@ -51,6 +52,11 @@ INCIDENT_JSON_SCHEMA = {
                         "properties": {"tactic": {"type": "string"}, "technique_id": {"type": "string"}},
                     },
                     "evidence": {"type": "string"}, "detection": {"type": "string"},
+                    "retrieval": {
+                        "type": "object",
+                        "properties": {"query_en": {"type": "string"}},
+                    },
+                    "display_vi": {"type": "object"},
                 },
             },
         },
@@ -74,7 +80,12 @@ def build_structured_incident(description, phase2_steps, *, model, provider, fal
             "severity": severity,
             "mitre": {
                 "tactic": _text(raw.get("mitre_tactic") or raw.get("tactic")),
-                "technique_id": _text(raw.get("technique_id")),
+                "technique_id": _text(raw.get("technique_id") or raw.get("techniqueId")),
+            },
+            "retrieval": {
+                "query_en": _text(
+                    raw.get("retrieval_query_en") or raw.get("retrieval_query")
+                ),
             },
             "evidence": _text(raw.get("evidence")),
             "detection": _text(raw.get("detection")),
@@ -151,24 +162,54 @@ def to_ui_result(structured):
     data = validate_structured_incident(structured)
     rank = data["severity"].lower()
     severity = rank if rank in ("critical", "high", "medium", "low") else "medium"
-    steps = [{
-        "id": step["order"], "action": step["action"], "tactic": step["mitre"]["tactic"],
-        "techniqueId": step["mitre"]["technique_id"], "description": step["evidence"],
-        "source": step["actor"], "target": step["target"], "detection": step["detection"], "icon": "◆",
-    } for step in data["steps"]]
+    steps = []
+    for step in data["steps"]:
+        display = step.get("display_vi") or {}
+        steps.append({
+            "id": step["order"],
+            "action": display.get("action") or step["action"],
+            "tactic": display.get("tactic") or step["mitre"]["tactic"],
+            "tacticCanonical": step["mitre"]["tactic"],
+            "techniqueId": step["mitre"]["technique_id"],
+            "description": display.get("description") or step["evidence"],
+            "source": display.get("actor") or step["actor"],
+            "target": display.get("target") or step["target"],
+            "detection": display.get("detection") or step["detection"],
+            "icon": "◆",
+        })
     phase2 = [{
-        "step": s["order"], "actor": s["actor"], "action": s["action"], "target": s["target"],
-        "asset": s["asset"], "severity": s["severity"], "mitre_tactic": s["mitre"]["tactic"],
+        "step": s["order"],
+        "actor": (s.get("display_vi") or {}).get("actor") or s["actor"],
+        "action": (s.get("display_vi") or {}).get("action") or s["action"],
+        "target": (s.get("display_vi") or {}).get("target") or s["target"],
+        "asset": (s.get("display_vi") or {}).get("asset") or s["asset"],
+        "severity": s["severity"],
+        "severity_vi": (s.get("display_vi") or {}).get("severity"),
+        "mitre_tactic": s["mitre"]["tactic"],
+        "mitre_tactic_vi": (s.get("display_vi") or {}).get("tactic"),
+        "technique_id": s["mitre"]["technique_id"],
+        "retrieval_query_en": (s.get("retrieval") or {}).get("query_en"),
     } for s in data["steps"]]
     techniques = [{"id": s["techniqueId"], "name": s["action"], "tactic": s["tactic"]}
                   for s in steps if s["techniqueId"] != "Unknown"]
+    localized_entities = _unique(
+        value
+        for step in data["steps"]
+        for value in (
+            (step.get("display_vi") or {}).get("actor"),
+            (step.get("display_vi") or {}).get("target"),
+            (step.get("display_vi") or {}).get("asset"),
+        )
+        if value
+    )
     return {
-        "incidentName": data["incident_name"], "severity": severity,
-        "confidence": data["confidence"], "entities": _unique(
+        "incidentName": (data.get("display_vi") or {}).get("incident_name") or data["incident_name"],
+        "severity": severity,
+        "confidence": data["confidence"], "entities": localized_entities or _unique(
             data["entities"]["actors"] + data["entities"]["targets"] + data["entities"]["assets"]
         ), "steps": steps, "techniques": techniques, "phase2": phase2,
         "structured_json": data, "engine": data["metadata"]["model"],
-        "executiveSummary": data["summary"],
+        "executiveSummary": (data.get("display_vi") or {}).get("summary") or data["summary"],
         "recommendations": _incident_recommendations(data),
     }
 
@@ -220,7 +261,10 @@ def _incident_recommendations(data):
             "Kiểm tra DLP/NDR, xác định phạm vi dữ liệu rò rỉ và kích hoạt quy trình thông báo sự cố."
         )
     for step in data["steps"]:
-        mitigation = str(step.get("mitigation", "")).strip()
+        mitigation = str(
+            (step.get("display_vi") or {}).get("mitigation")
+            or step.get("mitigation", "")
+        ).strip()
         if mitigation and mitigation.lower() not in ("unknown", "none", "n/a"):
             actions.append(mitigation)
     return list(dict.fromkeys(actions))[:8]

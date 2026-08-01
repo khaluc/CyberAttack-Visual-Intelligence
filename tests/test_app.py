@@ -89,11 +89,13 @@ def test_config_is_masked_and_can_be_updated():
     response = client.put("/api/config", json={
         "enabled": True, "provider": "compatible", "api_key": "secret-test-key",
         "base_url": "http://localhost:8000/v1", "model": "test-model",
-        "temperature": 0.2, "timeout": 20, "rag_enabled": True
+        "temperature": 0.2, "timeout": 20, "rag_enabled": True,
+        "localize_rag": True,
     })
     assert response.status_code == 200
     assert "api_key" not in response.json
     assert response.json["has_api_key"] is True
+    assert response.json["localize_rag"] is True
 
 
 def test_persisted_config_includes_custom_system_prompt(tmp_path):
@@ -110,6 +112,7 @@ def test_persisted_config_includes_custom_system_prompt(tmp_path):
         config_store._write_env(config)
     content = env_path.read_text(encoding="utf-8")
     assert 'LLM_SYSTEM_PROMPT="Custom phase 2 prompt"' in content
+    assert 'RAG_LOCALIZATION_ENABLED="true"' in content
 
 
 def test_connection_preview_does_not_mutate_live_config():

@@ -1,19 +1,34 @@
 """Local Vietnamese incident analysis and MITRE ATT&CK mapping engine."""
 
 CATALOG = [
-    (["email", "phishing", "giả mạo", "lừa đảo", "đính kèm"], "Gửi email phishing", "Initial Access", "T1566.001", "Email spearphishing có tệp đính kèm độc hại được dùng để tiếp cận người dùng.", "Threat Actor", "Nhân viên", "Email gateway", "✉"),
-    (["macro", "word", "tài liệu", "mở tệp"], "Thực thi tệp độc hại", "Execution", "T1204.002", "Người dùng mở tệp đính kèm và kích hoạt nội dung khiến mã độc được thực thi.", "Tệp đính kèm", "Endpoint", "EDR telemetry", "▣"),
-    (["powershell", "script", "cmd"], "Chạy PowerShell", "Execution", "T1059.001", "PowerShell được dùng để thực thi lệnh và tải payload từ hạ tầng bên ngoài.", "Office process", "PowerShell", "Script block log", "⌘"),
-    (["tải malware", "tải mã độc", "payload", "ransomware"], "Tải mã độc", "Command and Control", "T1105", "Payload bổ sung được truyền từ hệ thống bên ngoài vào môi trường nạn nhân.", "Remote host", "Endpoint", "Proxy / NDR", "↓"),
-    (["c2", "command and control", "kết nối"], "Thiết lập kết nối C2", "Command and Control", "T1071.001", "Mã độc giao tiếp với hạ tầng điều khiển qua giao thức web để nhận lệnh.", "Compromised host", "C2 server", "DNS / network logs", "⌁"),
-    (["đăng nhập", "credential", "thông tin đăng nhập", "mật khẩu"], "Đánh cắp thông tin đăng nhập", "Credential Access", "T1555.003", "Thông tin xác thực lưu trong trình duyệt bị thu thập để mở rộng quyền truy cập.", "Malware", "Browser credentials", "EDR behavior", "⌾"),
-    (["nâng quyền", "privilege"], "Nâng quyền đặc biệt", "Privilege Escalation", "T1068", "Đối tượng khai thác quyền truy cập hiện có để đạt đặc quyền cao hơn.", "Compromised account", "Local system", "Windows events", "⬆"),
-    (["cơ sở dữ liệu", "database", "máy chủ"], "Truy cập máy chủ dữ liệu", "Lateral Movement", "T1021", "Thông tin xác thực bị đánh cắp được dùng để truy cập tài nguyên nội bộ quan trọng.", "Compromised endpoint", "Database server", "Authentication logs", "▤"),
-    (["nén", "archive", "zip"], "Nén dữ liệu thu thập", "Collection", "T1560.001", "Dữ liệu được gom và nén trước khi đưa ra khỏi hệ thống.", "Database", "Archive file", "File telemetry", "▥"),
-    (["gửi ra ngoài", "gửi dữ liệu ra ngoài", "exfiltration", "tải lượng lớn", "đánh cắp dữ liệu"], "Đưa dữ liệu ra ngoài", "Exfiltration", "T1041", "Dữ liệu nhạy cảm được truyền qua kênh C2 hiện hữu đến hạ tầng đối tượng.", "Internal host", "External server", "DLP / NDR", "↗"),
-    (["mã hóa dữ liệu", "xóa bản sao", "ransomware"], "Mã hóa dữ liệu", "Impact", "T1486", "Đối tượng mã hóa dữ liệu nhằm làm gián đoạn hoạt động và tống tiền.", "Ransomware", "Enterprise data", "EDR / backup alerts", "◆"),
-    (["lỗ hổng", "khai thác"], "Khai thác dịch vụ công khai", "Initial Access", "T1190", "Lỗ hổng trên ứng dụng hướng Internet được khai thác để giành quyền truy cập ban đầu.", "Threat Actor", "Public server", "WAF / IDS", "⚡"),
+    (["email", "phishing", "giả mạo", "lừa đảo", "đính kèm"], "Gửi email lừa đảo", "Initial Access", "T1566.001", "Email lừa đảo có tệp đính kèm độc hại được dùng để tiếp cận người dùng.", "Kẻ tấn công", "Nhân viên", "Nhật ký cổng bảo mật email", "✉"),
+    (["macro", "word", "tài liệu", "mở tệp"], "Thực thi tệp độc hại", "Execution", "T1204.002", "Người dùng mở tệp đính kèm và kích hoạt nội dung khiến mã độc được thực thi.", "Tệp đính kèm", "Thiết bị đầu cuối", "Telemetry EDR", "▣"),
+    (["powershell", "script", "cmd"], "Chạy PowerShell", "Execution", "T1059.001", "PowerShell được dùng để thực thi lệnh và tải payload từ hạ tầng bên ngoài.", "Tiến trình Office", "PowerShell", "Nhật ký Script Block", "⌘"),
+    (["tải malware", "tải mã độc", "payload", "ransomware"], "Tải mã độc", "Command and Control", "T1105", "Payload bổ sung được truyền từ hệ thống bên ngoài vào môi trường nạn nhân.", "Máy chủ từ xa", "Thiết bị đầu cuối", "Nhật ký Proxy / NDR", "↓"),
+    (["c2", "command and control", "kết nối"], "Thiết lập kết nối C2", "Command and Control", "T1071.001", "Mã độc giao tiếp với hạ tầng điều khiển qua giao thức web để nhận lệnh.", "Máy chủ đã bị xâm nhập", "Máy chủ C2", "Nhật ký DNS / mạng", "⌁"),
+    (["đăng nhập", "credential", "thông tin đăng nhập", "mật khẩu"], "Đánh cắp thông tin đăng nhập", "Credential Access", "T1555.003", "Thông tin xác thực lưu trong trình duyệt bị thu thập để mở rộng quyền truy cập.", "Mã độc", "Thông tin xác thực trình duyệt", "Hành vi EDR", "⌾"),
+    (["nâng quyền", "privilege"], "Nâng quyền đặc biệt", "Privilege Escalation", "T1068", "Đối tượng khai thác quyền truy cập hiện có để đạt đặc quyền cao hơn.", "Tài khoản đã bị xâm nhập", "Hệ thống cục bộ", "Sự kiện Windows", "⬆"),
+    (["cơ sở dữ liệu", "database", "máy chủ"], "Truy cập máy chủ dữ liệu", "Lateral Movement", "T1021", "Thông tin xác thực bị đánh cắp được dùng để truy cập tài nguyên nội bộ quan trọng.", "Thiết bị đã bị xâm nhập", "Máy chủ cơ sở dữ liệu", "Nhật ký xác thực", "▤"),
+    (["nén", "archive", "zip"], "Nén dữ liệu thu thập", "Collection", "T1560.001", "Dữ liệu được gom và nén trước khi đưa ra khỏi hệ thống.", "Cơ sở dữ liệu", "Tệp nén", "Telemetry tệp", "▥"),
+    (["gửi ra ngoài", "gửi dữ liệu ra ngoài", "exfiltration", "tải lượng lớn", "đánh cắp dữ liệu"], "Đưa dữ liệu ra ngoài", "Exfiltration", "T1041", "Dữ liệu nhạy cảm được truyền qua kênh C2 hiện hữu đến hạ tầng đối tượng.", "Máy chủ nội bộ", "Máy chủ bên ngoài", "Cảnh báo DLP / NDR", "↗"),
+    (["mã hóa dữ liệu", "xóa bản sao", "ransomware"], "Mã hóa dữ liệu", "Impact", "T1486", "Đối tượng mã hóa dữ liệu nhằm làm gián đoạn hoạt động và tống tiền.", "Ransomware", "Dữ liệu doanh nghiệp", "Cảnh báo EDR / sao lưu", "◆"),
+    (["lỗ hổng", "khai thác"], "Khai thác dịch vụ công khai", "Initial Access", "T1190", "Lỗ hổng trên ứng dụng hướng Internet được khai thác để giành quyền truy cập ban đầu.", "Kẻ tấn công", "Máy chủ công khai", "Cảnh báo WAF / IDS", "⚡"),
 ]
+
+RETRIEVAL_QUERIES_EN = {
+    "T1566.001": "attacker sends spearphishing email with malicious attachment to employee",
+    "T1204.002": "user opens malicious document and enables active content",
+    "T1059.001": "powershell command and script interpreter executes malicious payload",
+    "T1105": "malware downloads ingress tool transfer payload from remote host",
+    "T1071.001": "malware establishes command and control over web protocol",
+    "T1555.003": "malware steals credentials from web browser credential store",
+    "T1068": "adversary exploits vulnerability to escalate privileges",
+    "T1021": "adversary uses remote services for lateral movement",
+    "T1560.001": "adversary compresses and archives collected data",
+    "T1041": "adversary exfiltrates data over command and control channel",
+    "T1486": "ransomware encrypts data for impact and deletes recovery copies",
+    "T1190": "adversary exploits public-facing web application vulnerability",
+}
 
 SAMPLE = "Kẻ tấn công gửi email giả mạo phòng nhân sự có đính kèm tài liệu Word độc hại cho nhân viên. Khi người dùng mở tệp và bật macro, một script PowerShell được thực thi để tải malware từ máy chủ bên ngoài. Malware thiết lập kết nối C2, đánh cắp thông tin đăng nhập trình duyệt, sau đó truy cập máy chủ cơ sở dữ liệu và nén dữ liệu khách hàng để gửi ra ngoài."
 
@@ -76,7 +91,7 @@ def analyze_incident(text: str) -> dict:
                     ("Máy chủ C2", "c2"), ("Cơ sở dữ liệu", "cơ sở dữ liệu"),
                     ("Thông tin đăng nhập", "đăng nhập"), ("Ransomware", "ransomware"),
                     ("Dữ liệu khách hàng", "khách hàng")]
-    entities = [name for name, key in entity_rules if key in normalized] or ["Threat Actor", "Endpoint", "Hạ tầng mạng"]
+    entities = [name for name, key in entity_rules if key in normalized] or ["Kẻ tấn công", "Thiết bị đầu cuối", "Hạ tầng mạng"]
     result = {
         "incidentName": "Xâm nhập và đánh cắp dữ liệu đa giai đoạn" if critical else "Chiến dịch xâm nhập hệ thống" if high else "Hoạt động đáng ngờ trên endpoint",
         "severity": severity, "confidence": confidence,
@@ -105,6 +120,10 @@ def analyze_incident(text: str) -> dict:
         "step": step["id"], "actor": step["source"], "action": step["action"],
         "target": step["target"], "asset": step["target"],
         "severity": severity.title(), "mitre_tactic": step["tactic"] or "Unknown",
+        "technique_id": step["techniqueId"],
+        "retrieval_query_en": RETRIEVAL_QUERIES_EN.get(
+            step["techniqueId"], f"{step['techniqueId']} {step['tactic']}"
+        ),
     } for step in steps]
     return result
 
